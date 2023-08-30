@@ -8,7 +8,7 @@ OBJDIR = objects
 
 OBJS = $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
-EXEC = myprogram
+EXEC = copyImage
 
 $(EXEC): $(OBJS)
 	$(CC) $(CFLAGS) $(OBJS) -o $(EXEC)
