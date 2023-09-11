@@ -5,8 +5,15 @@ void imageReader(const char* imageName, int *_height, int *_width, int *_bitDept
     FILE *streamIn;
     streamIn = fopen(imageName, "rb");
 
-    if(streamIn == (FILE *) 0){
+    if(streamIn == NULL){
         printf("Unable to read the image\n");
+    }
+
+    size_t bytesRead = fread(_header, sizeof(unsigned char), 54, streamIn);
+    if (bytesRead != 54) {
+        printf("Error reading the image header.\n");
+        fclose(streamIn);
+        return;
     }
 
     // Read the header of the image
