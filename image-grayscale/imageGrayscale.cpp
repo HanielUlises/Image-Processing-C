@@ -1,7 +1,7 @@
 #include "imageGrayscale.h"
 
 
-void readImage (){
+void toGrayScale (){
     FILE *fIn = fopen("images/lena_color.bmp", "rb");
     FILE *fOut = fopen("images/lena_gray.bmp", "wb");
 
