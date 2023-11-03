@@ -36,6 +36,7 @@ void toGrayScale() {
         return;
     }
 
+    // Color channels 
     for (int i = 0; i < imgSize; i++) {
         colorBuffer[i][0] = getc(fIn); // Red
         colorBuffer[i][1] = getc(fIn); // Green
@@ -54,5 +55,5 @@ void toGrayScale() {
     printf("\nSuccess.\n");
     fclose(fIn);
     fclose(fOut);
-    free(colorBuffer); // Don't forget to free the allocated memory.
+    free(colorBuffer);
 }
