@@ -30,7 +30,7 @@ void binarize(){
 
     // Buffer to store the pixel data
 
-    unsigned char* buffer = malloc(sizeof(unsigned char), imgSize);
+    unsigned char* buffer = (unsigned char*) malloc(sizeof(unsigned char) * imgSize);
     fread(buffer, sizeof(unsigned char), imgSize, fIn);
 
     // Conversion to black or white
