@@ -10,6 +10,7 @@ void increaseBrightness(){
     for (int i = 0; i < 54; i++){
         imgHeader[i] = getc(fIn);
     }
+    fwrite(imgHeader, sizeof(unsigned char), 54, fOut);
 
     int height = *(int *) &imgHeader[22];
     int width = *(int *) &imgHeader[18];
@@ -34,5 +35,7 @@ void increaseBrightness(){
     }
 
     fwrite(buffer, sizeof(unsigned char), imageSize, fOut);
+    fclose(fIn);
+    fclose(fOut);
 
 }
