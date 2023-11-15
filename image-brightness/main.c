@@ -2,5 +2,6 @@
 
 int main (){
     increaseBrightness();
+    reduceBrightness();
     return 0;
 }
