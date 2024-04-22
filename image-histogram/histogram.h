@@ -8,6 +8,6 @@
 
 float IMG_HIST [255];
 
-void imageReader(const char *imgName, int *height, int *width, unsigned char *header, unsigned char colorTable, unsigned char *buf);
+void imageReader(const char *imgName, int *height, int *width, unsigned char *header, unsigned char colorTable, unsigned char *buf, int bitDepth);
 void imageWriter(const char *imgName, unsigned char *header, unsigned char *colorTable, unsigned char *buf, int bitDepth);
-void imageHistogram();
+void imageHistogram (unsigned char* imageData , int imageRows, int imageColumns, float histogram[]);
