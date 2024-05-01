@@ -22,9 +22,9 @@ void imageReader(const char* imageName, int *_height, int *_width, int *_bitDept
     }
 
     // Extract image width, height, and bit depth from the header
-    *_width  = * (int*)&_header[18];
-    *_height= * (int*)&_header[22];
-    *_bitDepth = *(int*)&_header[28];
+    memcpy(_width, &_header[18], sizeof(int));
+    memcpy(_height, &_header[22], sizeof(int));
+    memcpy(_bitDepth, &_header[28], sizeof(int));
 
     // If the image has a bit depth less than or equal to 8, read the color table
     if(*_bitDepth <= 8){
