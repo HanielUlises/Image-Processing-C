@@ -58,7 +58,7 @@ void correctBrightness (unsigned char *_input_image_data, unsigned char *_output
 
     for(int y = 0; y < img_rows; y++){
         for(int x = 0; x < img_cols; x++){
-            i = *(_input_image_data + y * img_cols) + brightness;
+            i = *(_input_image_data + x + y * img_cols) + brightness;
 
             if(i > 255) i = 255;
             if(i < 0) i = 0;
