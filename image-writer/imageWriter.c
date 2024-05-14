@@ -1,6 +1,4 @@
 #include "imageWriter.h"
-#include <stdio.h>
-#include <stdlib.h>
 
 // Function to read an image file
 void imageReader(const char* imageName, int *height, int *width, int *bitDepth, unsigned char *header, unsigned char *colorTable, unsigned char *buffer){
@@ -65,4 +63,31 @@ void imageWriter(const char* imageName, unsigned char *header, unsigned char *co
     // Write the image data from the buffer
     fwrite(buffer, 1, imageSize, fo);
     fclose(fo);
+}
+
+void getImageMatrix(unsigned char *buffer, int width, int height, int bitDepth, const char* filename) {
+    if (bitDepth > 8) {
+        printf("Only 8-bit or lower images are supported for printing.\n");
+        return;
+    }
+
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        perror("Failed to open file");
+        return;
+    }
+
+    int bytesPerPixel = bitDepth / 8; 
+
+    // Iterate over each pixel in reverse!! (Important, otherwise the matrix will be 180 degrees flipped)
+    for (int i = height - 1; i >= 0; i--) {
+        for (int j = 0; j < width; j++) {
+            int pos = i * width + j * bytesPerPixel;
+            fprintf(file, "%3d ", buffer[pos]); 
+        }
+        fprintf(file, "\n");
+    }
+
+
+    fclose(file);
 }

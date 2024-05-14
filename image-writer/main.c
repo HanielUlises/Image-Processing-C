@@ -7,10 +7,17 @@ int main(int argc, char *argv[]) {
     unsigned char imgBuffer[CUSTOM_IMG_SIZE];
 
     const char imageName[] = "images/bridge.bmp";
-    const char newImgName[] = "images/bride_copy.bmp";
+    const char newImgName[] = "images/bridge_copy.bmp";
+    const char matrixFileName[] = "images/image_matrix.txt"; 
 
+    // Reading the image
     imageReader(imageName, &imgWidth, &imgHeight, &imgBitDepth, &imgHeader[0], &imgColorTable[0], &imgBuffer[0]);
-    imageWriter(newImgName, imgHeader, imgColorTable, imgBuffer, imgWidth, imgHeight,imgBitDepth);
+    
+    // Writing the image
+    imageWriter(newImgName, imgHeader, imgColorTable, imgBuffer, imgWidth, imgHeight, imgBitDepth);
+
+    // Getting the image matrix 
+    getImageMatrix(imgBuffer, imgWidth, imgHeight, imgBitDepth, matrixFileName);
 
     printf("==== SUCCESS ====\n");
     return 0;
