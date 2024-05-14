@@ -1,54 +1,68 @@
 #include "imageWriter.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 // Function to read an image file
-void imageReader(const char* imageName, int *_height, int *_width, int *_bitDepth ,unsigned char *_header, unsigned char *_colorTable, unsigned char *_buffer){
-    FILE *streamIn;
-    streamIn = fopen(imageName, "rb");
-
+void imageReader(const char* imageName, int *height, int *width, int *bitDepth, unsigned char *header, unsigned char *colorTable, unsigned char *buffer){
+    FILE *streamIn = fopen(imageName, "rb");
     if(streamIn == NULL){
-        printf("Unable to read the image\n");
+        printf("Unable to open the file: %s\n", imageName);
+        return;
     }
 
-    size_t bytesRead = fread(_header, sizeof(unsigned char), 54, streamIn);
-    if (bytesRead != 54) {
+    // Read the header of the image
+    if(fread(header, 1, 54, streamIn) != 54){
         printf("Error reading the image header.\n");
         fclose(streamIn);
         return;
     }
 
-    // Read the header of the image
-    for(int i = 0; i < 54; i++){
-        _header[i] = getc(streamIn);
-    }
-
     // Extract image width, height, and bit depth from the header
-    *_width  = * (int*)&_header[18];
-    *_height= * (int*)&_header[22];
-    *_bitDepth = *(int*)&_header[28];
+    *width = *(int*)&header[18];
+    *height = *(int*)&header[22];
+    *bitDepth = *(int*)&header[28];
+
+    int colorTableSize = (*bitDepth <= 8) ? 1024 : 0;
+    int imageSize = (*width) * (*height) * (*bitDepth / 8);
 
     // If the image has a bit depth less than or equal to 8, read the color table
-    if(*_bitDepth <= 8){
-        fread(_colorTable, sizeof(unsigned char), 1024, streamIn);
+    if(colorTableSize > 0){
+        if(fread(colorTable, 1, colorTableSize, streamIn) != colorTableSize){
+            printf("Error reading color table.\n");
+            fclose(streamIn);
+            return;
+        }
     }
 
     // Read the image data into the buffer
-    fread(_buffer, sizeof(unsigned), CUSTOM_IMG_SIZE, streamIn);
+    if(fread(buffer, 1, imageSize, streamIn) != imageSize){
+        printf("Error reading image data.\n");
+        fclose(streamIn);
+        return;
+    }
+
     fclose(streamIn);
 }
 
 // Function to write an image file
-void imageWriter(const char* imageName, unsigned char *header, unsigned char *colorTable, unsigned char* buffer, int bitDepth){
+void imageWriter(const char* imageName, unsigned char *header, unsigned char *colorTable, unsigned char* buffer, int width, int height, int bitDepth){
     FILE *fo = fopen(imageName, "wb");
+    if(fo == NULL){
+        printf("Unable to create the file: %s\n", imageName);
+        return;
+    }
 
-    // Write the header of the image 
-    fwrite(header, sizeof(unsigned char), 54, fo);
+    fwrite(header, 1, 54, fo);
+
+    int colorTableSize = (bitDepth <= 8) ? 1024 : 0;
+    int imageSize = width * height * (bitDepth / 8);
 
     // If the image has a bit depth less than or equal to 8, write the color table
-    if(bitDepth <= 8){
-        fwrite(colorTable, sizeof(unsigned char), 1024, fo);
+    if(colorTableSize > 0){
+        fwrite(colorTable, 1, colorTableSize, fo);
     }
 
     // Write the image data from the buffer
-    fwrite(buffer, sizeof(unsigned char), CUSTOM_IMG_SIZE, fo);
+    fwrite(buffer, 1, imageSize, fo);
     fclose(fo);
 }

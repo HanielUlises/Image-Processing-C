@@ -10,7 +10,7 @@ int main(int argc, char *argv[]) {
     const char newImgName[] = "images/bride_copy.bmp";
 
     imageReader(imageName, &imgWidth, &imgHeight, &imgBitDepth, &imgHeader[0], &imgColorTable[0], &imgBuffer[0]);
-    imageWriter(newImgName, imgHeader, imgColorTable, imgBuffer, imgBitDepth);
+    imageWriter(newImgName, imgHeader, imgColorTable, imgBuffer, imgWidth, imgHeight,imgBitDepth);
 
     printf("==== SUCCESS ====\n");
     return 0;
