@@ -1,10 +1,12 @@
-#include "stdio.h"
-#include "stdlib.h"
+#ifndef BINARIZATION_H
+#define BINARIZATION_H
 
+#include <stdio.h>
+#include <stdlib.h>
 
 #define WHITE 255
 #define BLACK 0
-// Threshold (limit to define whether to convert the current pixel to black or white)
-#define THRESHOLD 150
 
-void binarize();
+void adaptive_binarize(const char* inputPath, const char* outputPath, int windowSize, double C);
+
+#endif
