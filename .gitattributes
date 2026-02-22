@@ -1,0 +1,8 @@
+*.html linguist-vendored
+*.css linguist-vendored
+docs/** linguist-vendored
+
+gh-pages/** linguist-vendored
+
+*.c linguist-language=C
+*.h linguist-language=C
