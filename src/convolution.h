@@ -4,12 +4,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-struct kernel{
+struct kernel {
     int rows;
     int columns;
-    unsigned char *Data;
+    int *data;
 };
 
-void convolve (int img_rows, int img_cols, struct kernel *mask, unsigned char *input_buffer, unsigned char *output_buffer);
+void convolve_rgb(
+    int width,
+    int height,
+    struct kernel *mask,
+    unsigned char *input_buffer,
+    unsigned char *output_buffer
+);
 
-#endif // CONVOLUTION_H
+#endif

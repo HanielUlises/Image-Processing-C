@@ -9,19 +9,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: latest
 
-      - name: Build WASM
+      - name: Build WebAssembly module
         run: |
+          mkdir -p docs
+
           emcc src/*.c \
             -o docs/imgproc.js \
+            -O3 \
             -s WASM=1 \
             -s MODULARIZE=1 \
             -s EXPORT_NAME="ImageProcModule" \
-            -s EXPORTED_FUNCTIONS="['_alloc_input','_free_input','_get_output_ptr','_get_output_len','_free_output','_wasm_grayscale','_wasm_increase_brightness','_wasm_reduce_brightness','_wasm_binarize','_wasm_convolve','_wasm_correct_brightness']" \
-            -O3
+            -s ENVIRONMENT=web \
+            -s ALLOW_MEMORY_GROWTH=1 \
+            -s EXPORTED_FUNCTIONS='[
+              "_alloc_input",
+              "_free_input",
+              "_get_output_ptr",
+              "_get_output_len",
+              "_free_output",
+              "_wasm_grayscale",
+              "_wasm_increase_brightness",
+              "_wasm_reduce_brightness",
+              "_wasm_binarize",
+              "_wasm_convolve",
+              "_wasm_correct_brightness"
+            ]' \
+            -s EXPORTED_RUNTIME_METHODS='[
+              "ccall",
+              "cwrap"
+            ]'

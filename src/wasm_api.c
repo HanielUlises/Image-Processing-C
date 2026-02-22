@@ -85,14 +85,43 @@ void wasm_binarize(const unsigned char *input_bmp, int input_len,
 }
 
 EMSCRIPTEN_KEEPALIVE
-void wasm_convolve(const unsigned char *input_bmp, int input_len) {
+void wasm_convolve(
+    unsigned char *header,
+    int header_len,
+    unsigned char *pixels,
+    int pixels_len,
+    int height,
+    int width,
+    unsigned char *kernel_bytes,
+    int k_rows,
+    int k_cols
+) {
     free_output();
-    EM_ASM({ try { FS.mkdir('/tmp'); } catch(e) {} });
-    write_temp_file("/tmp/input.bmp", input_bmp, input_len);
 
-    applyConvolution("/tmp/input.bmp", "/tmp/output.bmp");
+    int *kdata = (int*)malloc(k_rows * k_cols * sizeof(int));
+    for (int i = 0; i < k_rows * k_cols; i++) {
+        kdata[i] = (signed char)kernel_bytes[i];
+    }
 
-    g_output_buf = read_temp_file("/tmp/output.bmp", &g_output_len);
+    struct kernel k;
+    k.rows = k_rows;
+    k.columns = k_cols;
+    k.data = kdata;
+
+    unsigned char *out_pixels =
+        (unsigned char*)malloc(pixels_len);
+
+    convolve_rgb(width, height, &k, pixels, out_pixels);
+
+    g_output_len = header_len + pixels_len;
+    g_output_buf = (unsigned char*)malloc(g_output_len);
+
+    memcpy(g_output_buf, header, header_len);
+    memcpy(g_output_buf + header_len,
+           out_pixels, pixels_len);
+
+    free(out_pixels);
+    free(kdata);
 }
 
 EMSCRIPTEN_KEEPALIVE
