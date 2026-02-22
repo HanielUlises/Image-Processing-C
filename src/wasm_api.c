@@ -8,6 +8,7 @@
 #include "binarization.h"
 #include "convolution.h"
 #include "imageWriter.h"
+#include "histogramEqualization.h"
 
 static void write_temp_file(const char *path, const unsigned char *data, int len) {
     FILE *f = fopen(path, "wb");
@@ -80,6 +81,30 @@ void wasm_binarize(const unsigned char *input_bmp, int input_len,
     write_temp_file("/tmp/input.bmp", input_bmp, input_len);
     adaptive_binarize("/tmp/input.bmp", "/tmp/output.bmp",
                       window_size, C);
+    g_output_buf = read_temp_file("/tmp/output.bmp", &g_output_len);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void wasm_convolve(const unsigned char *input_bmp, int input_len) {
+    free_output();
+    EM_ASM({ try { FS.mkdir('/tmp'); } catch(e) {} });
+    write_temp_file("/tmp/input.bmp", input_bmp, input_len);
+
+    applyConvolution("/tmp/input.bmp", "/tmp/output.bmp");
+
+    g_output_buf = read_temp_file("/tmp/output.bmp", &g_output_len);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void wasm_correct_brightness(const unsigned char *input_bmp, int input_len) {
+    free_output();
+
+    EM_ASM({ try { FS.mkdir('/tmp'); } catch(e) {} });
+
+    write_temp_file("/tmp/input.bmp", input_bmp, input_len);
+
+    equalizeHistogramRGB("/tmp/input.bmp", "/tmp/output.bmp");
+
     g_output_buf = read_temp_file("/tmp/output.bmp", &g_output_len);
 }
 
