@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Image Processing Lab — C / WebAssembly</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --white:  #ffffff;
+      --black:  #0a0a0a;
+      --gray1:  #f4f4f4;
+      --gray2:  #e0e0e0;
+      --gray3:  #999999;
+      --blue:   #0057ff;
+      --blue2:  #003fbb;
+      --red:    #cc2200;
+      --green:  #007a3d;
+      --sans:   'IBM Plex Sans', sans-serif;
+      --mono:   'IBM Plex Mono', monospace;
+    }
+
+    body {
+      background: var(--white);
+      color: var(--black);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    header {
+      border-bottom: 2px solid var(--black);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    header h1 {
+      font-family: var(--mono);
+      font-weight: 600;
+      font-size: 15px;
+    }
+    header h1 span { color: var(--blue); }
+    .badge {
+      margin-left: auto;
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--black);
+      color: var(--white);
+      padding: 3px 8px;
+    }
+
+    /* ── Status bar ───────────────────────────────── */
+    #status-bar {
+      background: var(--gray1);
+      border-bottom: 1px solid var(--gray2);
+      padding: 8px 24px;
+      font-family: var(--mono);
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--gray3);
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--gray3);
+      flex-shrink: 0;
+    }
+    .dot.ready { background: var(--green); }
+    .dot.busy  { background: var(--blue); animation: blink 0.8s infinite; }
+    .dot.error { background: var(--red); }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    main {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: calc(100vh - 77px);
+    }
+
+    aside {
+      border-right: 1px solid var(--gray2);
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      background: var(--gray1);
+    }
+
+    .section-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--gray3);
+      margin-bottom: 8px;
+    }
+
+    #drop-zone {
+      border: 2px dashed var(--gray2);
+      padding: 20px 12px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--white);
+      transition: border-color 0.15s;
+    }
+    #drop-zone:hover, #drop-zone.over { border-color: var(--blue); }
+    #drop-zone p { font-size: 12px; color: var(--gray3); margin-top: 4px; }
+    #drop-zone strong { font-size: 13px; color: var(--black); display: block; }
+    #file-input { display: none; }
+
+    /* Op buttons */
+    .op-list { display: flex; flex-direction: column; gap: 2px; }
+
+    .op-btn {
+      width: 100%;
+      background: var(--white);
+      border: 1px solid var(--gray2);
+      color: var(--black);
+      font-family: var(--sans);
+      font-size: 13px;
+      padding: 9px 12px;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .op-btn:hover:not(:disabled) { background: var(--blue); border-color: var(--blue); color: var(--white); }
+    .op-btn:hover:not(:disabled) .op-src { color: rgba(255,255,255,0.6); }
+    .op-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .op-src {
+      margin-left: auto;
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--gray3);
+    }
+
+    .param-block { display: flex; flex-direction: column; gap: 12px; }
+
+    .param-row { display: flex; flex-direction: column; gap: 4px; }
+    .param-row label { font-size: 11px; color: var(--gray3); font-family: var(--mono); }
+    .param-row input[type=range] {
+      -webkit-appearance: none;
+      width: 100%; height: 2px;
+      background: var(--gray2);
+      outline: none; cursor: pointer;
+    }
+    .param-row input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      background: var(--blue); border-radius: 0;
+    }
+    .param-val { font-family: var(--mono); font-size: 11px; color: var(--blue); text-align: right; }
+
+    #kernel-editor { display: none; flex-direction: column; gap: 8px; }
+    #kernel-editor.on { display: flex; }
+
+    select {
+      width: 100%;
+      background: var(--white);
+      border: 1px solid var(--gray2);
+      color: var(--black);
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 6px 8px;
+      outline: none; cursor: pointer;
+    }
+
+    .preset-row { display: flex; gap: 4px; flex-wrap: wrap; }
+    .preset-btn {
+      background: var(--white);
+      border: 1px solid var(--gray2);
+      color: var(--black);
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 4px 8px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .preset-btn:hover { background: var(--black); color: var(--white); border-color: var(--black); }
+
+    .kernel-grid { display: grid; gap: 2px; width: fit-content; }
+    .kernel-grid input {
+      width: 36px; height: 36px;
+      background: var(--white);
+      border: 1px solid var(--gray2);
+      color: var(--black);
+      font-family: var(--mono);
+      font-size: 12px;
+      text-align: center; outline: none;
+    }
+    .kernel-grid input:focus { border-color: var(--blue); }
+
+    .right { display: flex; flex-direction: column; padding: 20px 24px; gap: 16px; }
+
+    .canvas-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; }
+
+    .canvas-panel { display: flex; flex-direction: column; gap: 6px; }
+
+    .canvas-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gray3);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .canvas-frame {
+      border: 1px solid var(--gray2);
+      background: var(--gray1);
+      min-height: 320px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .canvas-frame canvas { max-width: 100%; max-height: 400px; display: block; image-rendering: pixelated; }
+    .placeholder { font-size: 12px; color: var(--gray3); text-align: center; line-height: 2; font-family: var(--mono); }
+
+    .overlay {
+      display: none;
+      position: absolute; inset: 0;
+      background: rgba(244,244,244,0.9);
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 10px;
+    }
+    .overlay.on { display: flex; }
+    .spinner {
+      width: 28px; height: 28px;
+      border: 2px solid var(--gray2);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .overlay span { font-family: var(--mono); font-size: 11px; color: var(--gray3); }
+
+    .bottom-bar { display: flex; align-items: stretch; gap: 12px; border-top: 1px solid var(--gray2); padding-top: 16px; }
+
+    #download-btn {
+      display: none;
+      background: var(--blue); border: none;
+      color: var(--white); font-family: var(--mono);
+      font-size: 12px; padding: 8px 16px;
+      cursor: pointer; white-space: nowrap;
+    }
+    #download-btn:hover { background: var(--blue2); }
+
+    #log {
+      flex: 1;
+      border: 1px solid var(--gray2);
+      background: var(--gray1);
+      padding: 8px 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--gray3);
+      height: 60px;
+      overflow-y: auto;
+      line-height: 1.8;
+    }
+    .ok  { color: var(--green); }
+    .err { color: var(--red); }
+    .inf { color: var(--blue); }
+
+    @media (max-width: 800px) {
+      main { grid-template-columns: 1fr; }
+      aside { border-right: none; border-bottom: 1px solid var(--gray2); }
+      .canvas-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Image Processing <span>Lab</span></h1>
+  <div class="badge">C + WebAssembly</div>
+</header>
+
+<div id="status-bar">
+  <div class="dot" id="dot"></div>
+  <span id="status-text">Loading WebAssembly module…</span>
+</div>
+
+<main>
+  <aside>
+
+    <div>
+      <div class="section-title">Input image</div>
+      <div id="drop-zone">
+        <strong>Drop a BMP file here</strong>
+        <p>or click to select</p>
+        <input type="file" id="file-input" accept=".bmp,image/bmp" />
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Operation</div>
+      <div class="op-list">
+        <button class="op-btn" data-op="grayscale" disabled>
+          Grayscale <span class="op-src">imageGrayscale.c</span>
+        </button>
+        <button class="op-btn" data-op="brightness_up" disabled>
+          Increase Brightness <span class="op-src">imageBrightness.c</span>
+        </button>
+        <button class="op-btn" data-op="brightness_down" disabled>
+          Reduce Brightness <span class="op-src">imageBrightness.c</span>
+        </button>
+        <button class="op-btn" data-op="binarize" disabled>
+          Adaptive Binarize <span class="op-src">binarization.c</span>
+        </button>
+        <button class="op-btn" data-op="convolve" disabled>
+          Convolution <span class="op-src">convolution.c</span>
+        </button>
+        <button class="op-btn" data-op="correct_brightness" disabled>
+          Brightness Correction <span class="op-src">imageWriter.c</span>
+        </button>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Parameters</div>
+      <div class="param-block">
+
+        <div class="param-row" id="p-window" style="display:none">
+          <label>Window size</label>
+          <input type="range" id="sl-window" min="3" max="51" step="2" value="15"/>
+          <div class="param-val" id="v-window">15</div>
+        </div>
+
+        <div class="param-row" id="p-c" style="display:none">
+          <label>Constant C</label>
+          <input type="range" id="sl-c" min="0" max="40" value="10"/>
+          <div class="param-val" id="v-c">10</div>
+        </div>
+
+        <div class="param-row" id="p-bright" style="display:none">
+          <label>Brightness offset</label>
+          <input type="range" id="sl-bright" min="-128" max="128" value="30"/>
+          <div class="param-val" id="v-bright">30</div>
+        </div>
+
+        <div id="kernel-editor">
+          <div class="param-row">
+            <label>Kernel size</label>
+            <select id="kernel-size">
+              <option value="3">3×3</option>
+              <option value="5">5×5</option>
+            </select>
+          </div>
+          <div class="preset-row">
+            <button class="preset-btn" data-preset="blur">Blur</button>
+            <button class="preset-btn" data-preset="sharpen">Sharpen</button>
+            <button class="preset-btn" data-preset="edge">Edge</button>
+            <button class="preset-btn" data-preset="emboss">Emboss</button>
+          </div>
+          <div class="kernel-grid" id="kernel-grid"></div>
+        </div>
+
+      </div>
+    </div>
+
+  </aside>
+
+  <div class="right">
+    <div class="canvas-row">
+      <div class="canvas-panel">
+        <div class="canvas-label">
+          <span>Original</span>
+          <span id="info-orig">—</span>
+        </div>
+        <div class="canvas-frame" id="frame-orig">
+          <div class="placeholder">Load a BMP image<br/>to get started</div>
+          <canvas id="canvas-orig"></canvas>
+        </div>
+      </div>
+
+      <div class="canvas-panel">
+        <div class="canvas-label">
+          <span>Result · C/WASM</span>
+          <span id="info-result">—</span>
+        </div>
+        <div class="canvas-frame">
+          <div class="placeholder" id="result-placeholder">Select an operation</div>
+          <canvas id="canvas-result"></canvas>
+          <div class="overlay" id="overlay">
+            <div class="spinner"></div>
+            <span>Running C function…</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-bar">
+      <button id="download-btn">↓ Download result (.bmp)</button>
+      <div id="log"><span class="inf">// operation log</span></div>
+    </div>
+  </div>
+</main>
+
+<script>
+let Mod = null;
+let rawBmp = null;
+let lastResult = null;
+let activeOp = null;
+
+/* ── Status & log ─────────────────────────────────────── */
+const dot  = document.getElementById('dot');
+const stxt = document.getElementById('status-text');
+const logEl = document.getElementById('log');
+
+function setStatus(state, msg) {
+  dot.className = 'dot ' + state;
+  stxt.textContent = msg;
+}
+function log(msg, cls = '') {
+  const s = document.createElement('span');
+  if (cls) s.className = cls;
+  s.textContent = msg;
+  logEl.appendChild(document.createElement('br'));
+  logEl.appendChild(s);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function loadWasm() {
+  setStatus('busy', 'Loading WebAssembly module…');
+  try {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'imgproc.js';
+      s.onload = res;
+      s.onerror = () => rej(new Error('imgproc.js not found — see log'));
+      document.head.appendChild(s);
+    });
+    Mod = await ImageProcModule();
+    setStatus('ready', 'WASM ready — C engine loaded');
+    log('// Module loaded OK', 'ok');
+    enableButtons();
+  } catch (e) {
+    setStatus('error', e.message);
+    log('// ERROR: ' + e.message, 'err');
+    log('// imgproc.js is built by the GitHub Actions workflow.', 'inf');
+  }
+}
+
+const dropZone = document.getElementById('drop-zone');
+const fileInp  = document.getElementById('file-input');
+
+dropZone.addEventListener('click', () => fileInp.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('over');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+fileInp.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+function loadFile(file) {
+  if (!file.name.toLowerCase().endsWith('.bmp')) {
+    log('// Only .bmp files are supported', 'err'); return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    rawBmp = new Uint8Array(e.target.result);
+    const {w, h, bpp} = parseHeader(rawBmp);
+    drawBmp(rawBmp, document.getElementById('canvas-orig'));
+    document.querySelector('#frame-orig .placeholder').style.display = 'none';
+    document.getElementById('info-orig').textContent = `${w}×${h} · ${bpp}bpp`;
+    log(`// Loaded: ${file.name} (${w}×${h}, ${bpp}bpp)`, 'ok');
+    enableButtons();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseHeader(b) {
+  const v = new DataView(b.buffer, b.byteOffset);
+  return {
+    dataOff: v.getUint32(10, true),
+    w:   v.getInt32(18, true),
+    h:   Math.abs(v.getInt32(22, true)),
+    bpp: v.getUint16(28, true)
+  };
+}
+
+function drawBmp(bytes, canvas) {
+  const {dataOff, w, h, bpp} = parseHeader(bytes);
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  const px  = img.data;
+
+  if (bpp === 24) {
+    const row = Math.floor((w*3+3)/4)*4;
+    for (let y=0;y<h;y++) {
+      const sy = h-1-y;
+      for (let x=0;x<w;x++) {
+        const s=dataOff+sy*row+x*3, d=(y*w+x)*4;
+        px[d]=bytes[s+2]; px[d+1]=bytes[s+1]; px[d+2]=bytes[s+0]; px[d+3]=255;
+      }
+    }
+  } else if (bpp === 8) {
+    const pal=[];
+    for(let i=0;i<256;i++){const o=54+i*4;pal.push([bytes[o+2],bytes[o+1],bytes[o+0]]);}
+    const row=Math.floor((w+3)/4)*4;
+    for(let y=0;y<h;y++){
+      const sy=h-1-y;
+      for(let x=0;x<w;x++){
+        const pi=bytes[dataOff+sy*row+x], d=(y*w+x)*4;
+        px[d]=pal[pi][0];px[d+1]=pal[pi][1];px[d+2]=pal[pi][2];px[d+3]=255;
+      }
+    }
+  } else {
+    ctx.fillStyle='#e0e0e0';ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#999';ctx.font='13px IBM Plex Mono';
+    ctx.fillText(`${bpp}bpp preview not supported`,8,h/2);
+    return;
+  }
+  ctx.putImageData(img,0,0);
+}
+
+function enableButtons() {
+  const ok = !!(Mod && rawBmp);
+  document.querySelectorAll('.op-btn').forEach(b => b.disabled = !ok);
+}
+
+document.querySelectorAll('.op-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activeOp = btn.dataset.op;
+    updateParams();
+    if (rawBmp && Mod) runOp();
+  });
+});
+
+function updateParams() {
+  document.getElementById('p-window').style.display = activeOp==='binarize' ? '' : 'none';
+  document.getElementById('p-c').style.display      = activeOp==='binarize' ? '' : 'none';
+  document.getElementById('p-bright').style.display = activeOp==='correct_brightness' ? '' : 'none';
+  document.getElementById('kernel-editor').classList.toggle('on', activeOp==='convolve');
+}
+
+[['sl-window','v-window'],['sl-c','v-c'],['sl-bright','v-bright']].forEach(([s,v])=>{
+  document.getElementById(s).addEventListener('input',()=>{
+    document.getElementById(v).textContent = document.getElementById(s).value;
+  });
+});
+
+const PRESETS = {
+  blur:    {s:3,d:[1,1,1,1,1,1,1,1,1]},
+  sharpen: {s:3,d:[0,-1,0,-1,5,-1,0,-1,0]},
+  edge:    {s:3,d:[-1,-1,-1,-1,8,-1,-1,-1,-1]},
+  emboss:  {s:3,d:[-2,-1,0,-1,1,1,0,1,2]},
+};
+
+function buildKernel(size,vals) {
+  const g=document.getElementById('kernel-grid');
+  g.style.gridTemplateColumns=`repeat(${size},36px)`;
+  g.innerHTML='';
+  for(let i=0;i<size*size;i++){
+    const inp=document.createElement('input');
+    inp.type='number';
+    inp.value=vals?vals[i]:(i===Math.floor(size*size/2)?1:0);
+    g.appendChild(inp);
+  }
+}
+buildKernel(3);
+
+document.getElementById('kernel-size').addEventListener('change',e=>buildKernel(+e.target.value));
+document.querySelectorAll('.preset-btn').forEach(b=>{
+  b.addEventListener('click',()=>{const p=PRESETS[b.dataset.preset];document.getElementById('kernel-size').value=p.s;buildKernel(p.s,p.d);});
+});
+
+function getKernel() {
+  const size=+document.getElementById('kernel-size').value;
+  const data=Array.from(document.querySelectorAll('#kernel-grid input')).map(i=>+i.value||0);
+  return {size,data};
+}
+
+function toWasm(bytes){const p=Mod._alloc_input(bytes.length);Mod.HEAPU8.set(bytes,p);return p;}
+function readOut(){
+  const p=Mod._get_output_ptr(),l=Mod._get_output_len();
+  if(!p||l===0)return null;
+  const r=new Uint8Array(Mod.HEAPU8.buffer,p,l).slice();
+  Mod._free_output();return r;
+}
+
+async function runOp() {
+  document.getElementById('overlay').classList.add('on');
+  setStatus('busy',`Running ${activeOp}…`);
+  await new Promise(r=>setTimeout(r,20));
+
+  try {
+    const t0=performance.now();
+    const result=execOp(activeOp);
+    const ms=(performance.now()-t0).toFixed(1);
+
+    if(result&&result.length>0){
+      lastResult=result;
+      drawBmp(result,document.getElementById('canvas-result'));
+      document.getElementById('result-placeholder').style.display='none';
+      document.getElementById('info-result').textContent=`${result.length} bytes · ${ms}ms`;
+      document.getElementById('download-btn').style.display='';
+      log(`// ${activeOp} done in ${ms}ms`,'ok');
+      setStatus('ready',`${activeOp} completed in ${ms}ms`);
+    } else {
+      log('// Empty result — check BMP bit depth','err');
+      setStatus('error','Empty result');
+    }
+  } catch(e) {
+    log('// Error: '+e.message,'err');
+    setStatus('error',e.message);
+  } finally {
+    document.getElementById('overlay').classList.remove('on');
+  }
+}
+
+function execOp(op) {
+  const b=rawBmp;
+  if(op==='grayscale'){const p=toWasm(b);Mod._wasm_grayscale(p,b.length);Mod._free_input(p);return readOut();}
+  if(op==='brightness_up'){const p=toWasm(b);Mod._wasm_increase_brightness(p,b.length);Mod._free_input(p);return readOut();}
+  if(op==='brightness_down'){const p=toWasm(b);Mod._wasm_reduce_brightness(p,b.length);Mod._free_input(p);return readOut();}
+  if(op==='binarize'){
+    const p=toWasm(b);
+    Mod._wasm_binarize(p,b.length,+document.getElementById('sl-window').value,+document.getElementById('sl-c').value);
+    Mod._free_input(p);return readOut();
+  }
+  if(op==='convolve'){
+    const v=new DataView(b.buffer,b.byteOffset);
+    const off=v.getUint32(10,true),w=v.getInt32(18,true),h=Math.abs(v.getInt32(22,true));
+    const hdr=b.slice(0,off),pix=b.slice(off);
+    const {size,data}=getKernel();
+    const kb=new Uint8Array(data.map(x=>x<0?256+x:x));
+    const hp=toWasm(hdr),pp=toWasm(pix),kp=toWasm(kb);
+    Mod._wasm_convolve(hp,hdr.length,pp,pix.length,h,w,kp,size,size);
+    Mod._free_input(hp);Mod._free_input(pp);Mod._free_input(kp);
+    return readOut();
+  }
+  if(op==='correct_brightness'){
+    const v=new DataView(b.buffer,b.byteOffset);
+    const off=v.getUint32(10,true),w=v.getInt32(18,true),h=Math.abs(v.getInt32(22,true));
+    const hdr=b.slice(0,off),pix=b.slice(off);
+    const hp=toWasm(hdr),pp=toWasm(pix);
+    Mod._wasm_correct_brightness(hp,hdr.length,pp,pix.length,h,w,+document.getElementById('sl-bright').value);
+    Mod._free_input(hp);Mod._free_input(pp);
+    return readOut();
+  }
+}
+
+document.getElementById('download-btn').addEventListener('click',()=>{
+  if(!lastResult)return;
+  const url=URL.createObjectURL(new Blob([lastResult],{type:'image/bmp'}));
+  Object.assign(document.createElement('a'),{href:url,download:`${activeOp}.bmp`}).click();
+  URL.revokeObjectURL(url);
+});
+
+loadWasm();
+</script>
+</body>
+</html>
