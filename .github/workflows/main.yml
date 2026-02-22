@@ -1,0 +1,27 @@
+name: Build WASM
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Build WASM
+        run: |
+          emcc src/*.c \
+            -o docs/imgproc.js \
+            -s WASM=1 \
+            -s MODULARIZE=1 \
+            -s EXPORT_NAME="ImageProcModule" \
+            -s EXPORTED_FUNCTIONS="['_alloc_input','_free_input','_get_output_ptr','_get_output_len','_free_output','_wasm_grayscale','_wasm_increase_brightness','_wasm_reduce_brightness','_wasm_binarize','_wasm_convolve','_wasm_correct_brightness']" \
+            -O3
