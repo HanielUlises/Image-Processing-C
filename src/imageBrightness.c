@@ -1,80 +1,68 @@
 #include "imageBrightness.h"
+#include "imageWriter.h"
+#include <stdlib.h>
 
-void increaseBrightness(){
-    FILE * fIn = fopen("images/lena512.bmp", "rb");
-    FILE * fOut = fopen("images/lena_increased.bmp", "wb");
+#define BRIGHTNESS_FACTOR 100
+#define DARKNESS_FACTOR   50
+#define MAXIMUM_COLOR     255
+#define MINIMUM_COLOR     0
 
-    unsigned char imgHeader[54];
+void increaseBrightness(const char* inputPath, const char* outputPath){
+
+    unsigned char header[54];
     unsigned char colorTable[1024];
+    int height, width, bitDepth;
 
-    for (int i = 0; i < 54; i++){
-        imgHeader[i] = getc(fIn);
-    }
-    fwrite(imgHeader, sizeof(unsigned char), 54, fOut);
+    FILE* temp = fopen(inputPath, "rb");
+    fseek(temp, 0, SEEK_END);
+    int fileSize = ftell(temp);
+    rewind(temp);
+    fclose(temp);
 
-    int height = *(int *) &imgHeader[22];
-    int width = *(int *) &imgHeader[18];
-    int bitDepth = *(int *) & imgHeader[28];
+    unsigned char* buffer = (unsigned char*)malloc(fileSize);
 
-    int imageSize = height * width;
+    imageReader(inputPath, &height, &width, &bitDepth,
+                header, colorTable, buffer);
 
-    if (bitDepth <= 8){
-        fread(colorTable, sizeof(unsigned char), 1024, fIn);
-        fwrite(colorTable, sizeof(unsigned char), 1024, fOut);
-    }
+    int imageSize = width * height * (bitDepth / 8);
 
-    // Buffer to store the pixel data
-    unsigned char* buffer = (unsigned char*) malloc(sizeof(unsigned char) * imageSize);
-    
-    fread(buffer, sizeof(unsigned char), imageSize, fIn);
-
-    int temp;
-    for(int i = 0; i<imageSize; i++){
-        temp = buffer[i] + BRIGHTNESS_FACTOR;
-        buffer[i] = (temp > MAXIMUM_COLOR) ? MAXIMUM_COLOR : temp;
+    for(int i = 0; i < imageSize; i++){
+        int tempVal = buffer[i] + BRIGHTNESS_FACTOR;
+        buffer[i] = (tempVal > MAXIMUM_COLOR) ? MAXIMUM_COLOR : tempVal;
     }
 
-    fwrite(buffer, sizeof(unsigned char), imageSize, fOut);
-    fclose(fIn);
-    fclose(fOut);
+    imageWriter(outputPath, header, colorTable,
+                buffer, width, height, bitDepth);
 
+    free(buffer);
 }
 
-void reduceBrightness(){
-    FILE * fIn = fopen("images/lena512.bmp", "rb");
-    FILE * fOut = fopen("images/lena_decreased.bmp", "wb");
+void reduceBrightness(const char* inputPath, const char* outputPath){
 
-    unsigned char imgHeader[54];
+    unsigned char header[54];
     unsigned char colorTable[1024];
+    int height, width, bitDepth;
 
-    for (int i = 0; i < 54; i++){
-        imgHeader[i] = getc(fIn);
-    }
-    fwrite(imgHeader, sizeof(unsigned char), 54, fOut);
+    FILE* temp = fopen(inputPath, "rb");
+    fseek(temp, 0, SEEK_END);
+    int fileSize = ftell(temp);
+    rewind(temp);
+    fclose(temp);
 
-    int height = *(int *) &imgHeader[22];
-    int width = *(int *) &imgHeader[18];
-    int bitDepth = *(int *) & imgHeader[28];
+    unsigned char* buffer = (unsigned char*)malloc(fileSize);
 
-    int imageSize = height * width;
+    imageReader(inputPath, &height, &width, &bitDepth,
+                header, colorTable, buffer);
 
-    if (bitDepth <= 8){
-        fread(colorTable, sizeof(unsigned char), 1024, fIn);
-        fwrite(colorTable, sizeof(unsigned char), 1024, fOut);
-    }
+    int imageSize = width * height * (bitDepth / 8);
 
-    // Buffer to store the pixel data
-    unsigned char* buffer = (unsigned char*) malloc(sizeof(unsigned char) * imageSize);
-    
-    fread(buffer, sizeof(unsigned char), imageSize, fIn);
-
-    int temp;
-    for(int i = 0; i<imageSize; i++){
-        temp = buffer[i] - DARKNESS_FACTOR;
-        buffer[i] = (temp < MINIMUM_COLOR) ? MINIMUM_COLOR : temp;
+    for(int i = 0; i < imageSize; i++){
+        int tempVal = buffer[i] - DARKNESS_FACTOR;
+        buffer[i] = (tempVal < MINIMUM_COLOR) ? MINIMUM_COLOR : tempVal;
     }
 
-    fwrite(buffer, sizeof(unsigned char), imageSize, fOut);
-    fclose(fIn);
-    fclose(fOut);
+    imageWriter(outputPath, header, colorTable,
+                buffer, width, height, bitDepth);
+
+    free(buffer);
 }

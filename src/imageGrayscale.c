@@ -1,59 +1,36 @@
 #include "imageGrayscale.h"
+#include "imageWriter.h"
+#include <stdlib.h>
 
-void toGrayScale() {
-    FILE *fIn = fopen("images/lena_color.bmp", "rb");
-    FILE *fOut = fopen("images/lena_gray.bmp", "wb");
+void toGrayScale(const char* inputPath, const char* outputPath){
 
-    if (fIn == NULL || fOut == NULL) {
-        printf("Unable to open the image\n");
-        return;
-    }
-
-    unsigned char imgHeader[54];
+    unsigned char header[54];
     unsigned char colorTable[1024];
+    int height, width, bitDepth;
 
-    fread(imgHeader, sizeof(unsigned char), 54, fIn);
-    fwrite(imgHeader, sizeof(unsigned char), 54, fOut);
+    FILE* temp = fopen(inputPath, "rb");
+    fseek(temp, 0, SEEK_END);
+    int fileSize = ftell(temp);
+    rewind(temp);
+    fclose(temp);
 
-    // Image properties
-    int height = *(int *) &imgHeader[22];
-    int width = *(int *) &imgHeader[18];
-    int depth = *(int *) &imgHeader[28];
+    unsigned char* buffer = (unsigned char*)malloc(fileSize);
 
-    if (depth <= 8) {
-        fread(colorTable, sizeof(unsigned char), 1024, fIn);
-        fwrite(colorTable, sizeof(unsigned char), 1024, fOut);
+    imageReader(inputPath, &height, &width, &bitDepth,
+                header, colorTable, buffer);
+
+    int imageSize = width * height * (bitDepth / 8);
+
+    for(int i = 0; i < imageSize; i++){
+        buffer[i] = (unsigned char)(
+            0.3 * buffer[i] +
+            0.59 * buffer[i] +
+            0.11 * buffer[i]
+        );
     }
 
-    int imgSize = height * width;
+    imageWriter(outputPath, header, colorTable,
+                buffer, width, height, bitDepth);
 
-    // Color buffer that stores the RGB from the image
-    unsigned char (*colorBuffer)[3] = (unsigned char (*)[3]) malloc (imgSize * sizeof(unsigned char[3]));
-    if (colorBuffer == NULL) {
-        printf("Memory allocation failed\n");
-        fclose(fIn);
-        fclose(fOut);
-        return;
-    }
-
-    // Color channels 
-    for (int i = 0; i < imgSize; i++) {
-        colorBuffer[i][0] = getc(fIn); // Red
-        colorBuffer[i][1] = getc(fIn); // Green
-        colorBuffer[i][2] = getc(fIn); // Blue
-
-        // Temporal variable
-        int temp = 0;
-
-        temp = (colorBuffer[i][0] * 0.3) + (colorBuffer[i][1] * 0.59) + (colorBuffer[i][2] * 0.11);
-
-        for (int j = 0; j < 3; j++) {
-            putc(temp, fOut);
-        }
-    }
-
-    printf("\nSuccess.\n");
-    fclose(fIn);
-    fclose(fOut);
-    free(colorBuffer);
+    free(buffer);
 }

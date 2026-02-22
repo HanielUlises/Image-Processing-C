@@ -1,11 +1,7 @@
-#include "stdio.h"
-#include "stdlib.h"
+#ifndef IMAGE_BRIGHTNESS_H
+#define IMAGE_BRIGHTNESS_H
 
-#define BRIGHTNESS_FACTOR   100
-#define DARKNESS_FACTOR     50
+void increaseBrightness(const char* inputPath, const char* outputPath);
+void reduceBrightness(const char* inputPath, const char* outputPath);
 
-#define MAXIMUM_COLOR       255    
-#define MINIMUM_COLOR       0       
-
-void increaseBrightness();
-void reduceBrightness();
+#endif
