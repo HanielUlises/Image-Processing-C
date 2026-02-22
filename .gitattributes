@@ -4,5 +4,10 @@ docs/** linguist-vendored
 
 gh-pages/** linguist-vendored
 
+
+web/* linguist-vendored
+
+*.wasm linguist-vendored
+
 *.c linguist-language=C
 *.h linguist-language=C
