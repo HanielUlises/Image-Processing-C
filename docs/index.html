@@ -399,16 +399,18 @@
     </div>
 
     <div class="bottom-bar">
-      <button id="download-btn">↓ Download result (.bmp)</button>
-      <div id="log"><span class="inf">// operation log</span></div>
-    </div>
+      <button id="apply-btn">Apply</button>
+      <button id="reset-btn">Reset</button>
+      <button id="save-btn" disabled>Save (.bmp)</button>
+    <div id="log">
   </div>
 </main>
 
 <script>
 let Mod = null;
-let rawBmp = null;
-let lastResult = null;
+let originalBmp = null;
+let workingBmp  = null;
+let lastResult  = null;
 let activeOp = null;
 
 /* ── Status & log ─────────────────────────────────────── */
@@ -468,9 +470,11 @@ function loadFile(file) {
   }
   const reader = new FileReader();
   reader.onload = e => {
-    rawBmp = new Uint8Array(e.target.result);
-    const {w, h, bpp} = parseHeader(rawBmp);
-    drawBmp(rawBmp, document.getElementById('canvas-orig'));
+    originalBmp = new Uint8Array(e.target.result);
+    workingBmp  = new Uint8Array(originalBmp);
+
+    const {w, h, bpp} = parseHeader(workingBmp);
+    drawBmp(workingBmp, document.getElementById('canvas-orig'));
     document.querySelector('#frame-orig .placeholder').style.display = 'none';
     document.getElementById('info-orig').textContent = `${w}×${h} · ${bpp}bpp`;
     log(`// Loaded: ${file.name} (${w}×${h}, ${bpp}bpp)`, 'ok');
@@ -526,7 +530,7 @@ function drawBmp(bytes, canvas) {
 }
 
 function enableButtons() {
-  const ok = !!(Mod && rawBmp);
+  const ok = !!(Mod && workingBmp);
   document.querySelectorAll('.op-btn').forEach(b => b.disabled = !ok);
 }
 
@@ -534,7 +538,6 @@ document.querySelectorAll('.op-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     activeOp = btn.dataset.op;
     updateParams();
-    if (rawBmp && Mod) runOp();
   });
 });
 
@@ -621,7 +624,7 @@ async function runOp() {
 }
 
 function execOp(op) {
-  const b=rawBmp;
+  const b=workingBmp;
   if(op==='grayscale'){const p=toWasm(b);Mod._wasm_grayscale(p,b.length);Mod._free_input(p);return readOut();}
   if(op==='brightness_up'){const p=toWasm(b);Mod._wasm_increase_brightness(p,b.length);Mod._free_input(p);return readOut();}
   if(op==='brightness_down'){const p=toWasm(b);Mod._wasm_reduce_brightness(p,b.length);Mod._free_input(p);return readOut();}
@@ -652,11 +655,63 @@ function execOp(op) {
   }
 }
 
-document.getElementById('download-btn').addEventListener('click',()=>{
-  if(!lastResult)return;
-  const url=URL.createObjectURL(new Blob([lastResult],{type:'image/bmp'}));
-  Object.assign(document.createElement('a'),{href:url,download:`${activeOp}.bmp`}).click();
+document.getElementById('save-btn').addEventListener('click', () => {
+  if (!workingBmp) return;
+
+  const url = URL.createObjectURL(
+    new Blob([workingBmp], { type: 'image/bmp' })
+  );
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'processed.bmp';
+  a.click();
+
   URL.revokeObjectURL(url);
+});
+
+document.getElementById('apply-btn').addEventListener('click', async () => {
+  if (!activeOp || !workingBmp || !Mod) return;
+
+  document.getElementById('overlay').classList.add('on');
+  setStatus('busy', `Applying ${activeOp}…`);
+
+  await new Promise(r => setTimeout(r, 10));
+
+  try {
+    const t0 = performance.now();
+    const result = execOp(activeOp);
+    const ms = (performance.now() - t0).toFixed(1);
+
+    if (result && result.length > 0) {
+      workingBmp = result;
+      lastResult = result;
+
+      drawBmp(result, document.getElementById('canvas-result'));
+      document.getElementById('save-btn').disabled = false;
+
+      log(`// ${activeOp} applied in ${ms}ms`, 'ok');
+      setStatus('ready', `${activeOp} applied`);
+    }
+  } catch (e) {
+    log('// Error: ' + e.message, 'err');
+    setStatus('error', e.message);
+  } finally {
+    document.getElementById('overlay').classList.remove('on');
+  }
+});
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  if (!originalBmp) return;
+
+  workingBmp = new Uint8Array(originalBmp);
+  lastResult = null;
+
+  drawBmp(workingBmp, document.getElementById('canvas-result'));
+  document.getElementById('save-btn').disabled = true;
+
+  log('// Image reset to original', 'inf');
+  setStatus('ready', 'Image reset');
 });
 
 loadWasm();
