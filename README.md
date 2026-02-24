@@ -1,14 +1,21 @@
-# Image Processing Algorithms with C
-
+# Image Processing Algorithms in C (Compiled to WebAssembly)
 ---
+This repository contains a collection of fundamental image processing algorithms implemented in pure C and compiled to WebAssembly using Emscripten.
 
-This repository contains a collection of image processing techniques implemented in C, including:
+The project focuses on low-level image manipulation, manual memory management, and performance-oriented pixel processing without relying on external image processing libraries.
 
-- **Binarization**: Converts images to binary by applying thresholding techniques.
-- **Brightness Adjustment**: Modifies the brightness levels of images.
-- **Convolution**: Applies discrete 2D convolution for various image effects like blurring and edge detection.
-- **Image Copying**: Duplicates image data from one source to another.
-- **Grayscale Conversion**: Transforms colored images into grayscale.
-- **Histogram Manipulation**: Adjusts image brightness and contrast using histogram operations.
+## Overview
 
-This repository serves as a resource for learning and implementing fundamental image processing techniques using C.
+The codebase includes implementations of grayscale conversion, brightness adjustment, global and adaptive binarization, histogram-based correction, and a generic 2D discrete convolution engine capable of handling custom signed kernels of arbitrary size.
+
+All algorithms operate directly on raw image buffers, demonstrating pointer arithmetic, structured memory handling, and efficient traversal of pixel data.
+
+## Convolution Engine
+
+A fully generic 2D convolution implementation supports dynamic kernel dimensions and signed integer masks. This allows the application of common filters such as blur, sharpening, edge detection, and custom user-defined effects.
+
+The implementation correctly handles boundary conditions and clamps output values to valid 8-bit ranges.
+
+## Histogram Processing
+
+Histogram-based correction methods are included to enhance brightness and contrast distribution across images. These operations are performed directly over pixel intensity values for full control of transformation behavior.
