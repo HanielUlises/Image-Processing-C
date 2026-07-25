@@ -188,11 +188,21 @@
     .stage {
       flex: 1; min-height: 260px; max-height: 42vh;
       display: flex; align-items: center; justify-content: center;
+      padding: 8px;
       background:
         repeating-conic-gradient(#efefdc 0% 25%, var(--paper) 0% 50%) 0 0 / 16px 16px;
-      overflow: auto; position: relative;
+      overflow: hidden; position: relative;
     }
-    .stage canvas { image-rendering: pixelated; display: block; }
+    /* Fit any image inside its frame while preserving aspect ratio. */
+    .stage canvas {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      image-rendering: auto;
+    }
     .stage .ph { font-family: var(--mono); font-size: 11px; color: var(--dim); text-align: center; }
     .stage .busy {
       position: absolute; inset: 0; display: none;
