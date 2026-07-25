@@ -282,6 +282,13 @@
     .inf { color: #004a99; }
 
     @media (max-width: 760px) {
+      /* Let the command bar wrap instead of scrolling off-screen, and
+         push the engine status onto its own full-width line so the
+         status LED is always visible. */
+      .tagline { flex-wrap: wrap; overflow-x: visible; white-space: normal; row-gap: 2px; }
+      .tagline .grow { flex-basis: 100%; height: 0; margin: 0; }
+      .engine { margin-left: 0; }
+
       main { grid-template-columns: 1fr; height: auto; }
       aside { border-right: none; border-bottom: 1px solid var(--frame); }
       .viewers { grid-template-columns: 1fr; }
