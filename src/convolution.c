@@ -11,10 +11,14 @@ void convolve_rgb(
     int height,
     struct kernel *mask,
     unsigned char *input,
-    unsigned char *output
+    unsigned char *output,
+    int divisor,
+    int bias
 ) {
     int kHalfR = mask->rows / 2;
     int kHalfC = mask->columns / 2;
+
+    if (divisor == 0) divisor = 1;
 
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
@@ -29,24 +33,26 @@ void convolve_rgb(
                     int yy = y + (m - kHalfR);
                     int xx = x + (n - kHalfC);
 
-                    if (yy >= 0 && yy < height &&
-                        xx >= 0 && xx < width) {
+                    /* Clamp coordinates to the edge so borders stay defined. */
+                    if (yy < 0) yy = 0;
+                    if (yy >= height) yy = height - 1;
+                    if (xx < 0) xx = 0;
+                    if (xx >= width) xx = width - 1;
 
-                        int imgIdx = (yy * width + xx) * 3;
-                        int kVal   = mask->data[m * mask->columns + n];
+                    int imgIdx = (yy * width + xx) * 3;
+                    int kVal   = mask->data[m * mask->columns + n];
 
-                        sumB += input[imgIdx]     * kVal;
-                        sumG += input[imgIdx + 1] * kVal;
-                        sumR += input[imgIdx + 2] * kVal;
-                    }
+                    sumB += input[imgIdx]     * kVal;
+                    sumG += input[imgIdx + 1] * kVal;
+                    sumR += input[imgIdx + 2] * kVal;
                 }
             }
 
             int outIdx = (y * width + x) * 3;
 
-            output[outIdx]     = (unsigned char)clamp(sumB);
-            output[outIdx + 1] = (unsigned char)clamp(sumG);
-            output[outIdx + 2] = (unsigned char)clamp(sumR);
+            output[outIdx]     = (unsigned char)clamp(sumB / divisor + bias);
+            output[outIdx + 1] = (unsigned char)clamp(sumG / divisor + bias);
+            output[outIdx + 2] = (unsigned char)clamp(sumR / divisor + bias);
         }
     }
 }
