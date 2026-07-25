@@ -92,26 +92,23 @@ void wasm_convolve(
     int pixels_len,
     int height,
     int width,
-    unsigned char *kernel_bytes,
+    int *kernel_data,
     int k_rows,
-    int k_cols
+    int k_cols,
+    int divisor,
+    int bias
 ) {
     free_output();
-
-    int *kdata = (int*)malloc(k_rows * k_cols * sizeof(int));
-    for (int i = 0; i < k_rows * k_cols; i++) {
-        kdata[i] = (signed char)kernel_bytes[i];
-    }
 
     struct kernel k;
     k.rows = k_rows;
     k.columns = k_cols;
-    k.data = kdata;
+    k.data = kernel_data;
 
     unsigned char *out_pixels =
         (unsigned char*)malloc(pixels_len);
 
-    convolve_rgb(width, height, &k, pixels, out_pixels);
+    convolve_rgb(width, height, &k, pixels, out_pixels, divisor, bias);
 
     g_output_len = header_len + pixels_len;
     g_output_buf = (unsigned char*)malloc(g_output_len);
@@ -121,7 +118,6 @@ void wasm_convolve(
            out_pixels, pixels_len);
 
     free(out_pixels);
-    free(kdata);
 }
 
 EMSCRIPTEN_KEEPALIVE

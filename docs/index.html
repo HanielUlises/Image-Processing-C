@@ -3,717 +3,938 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Image Processing Lab — C / WebAssembly</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap" />
+  <title>image(1) — Image Processing Lab</title>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
+    /* ─────────────────────────────────────────────────────────────
+       Plan 9 / acme inspired chrome.  Pale-yellow "paper", pale-cyan
+       tag lines, hairline black frames, reverse-video for anything
+       active.  No gradients, no rounded corners, no animation beyond
+       a blinking caret.  Sober, like a tool left running on a
+       researcher's terminal.
+       ───────────────────────────────────────────────────────────── */
     :root {
-      --white:  #ffffff;
-      --black:  #0a0a0a;
-      --gray1:  #f4f4f4;
-      --gray2:  #e0e0e0;
-      --gray3:  #999999;
-      --blue:   #0057ff;
-      --blue2:  #003fbb;
-      --red:    #cc2200;
-      --green:  #007a3d;
-      --sans:   'IBM Plex Sans', sans-serif;
-      --mono:   'IBM Plex Mono', monospace;
+      --paper:  #ffffea;   /* acme body     */
+      --tag:    #eaffff;   /* acme tag line */
+      --tag2:   #dcf6f6;
+      --ink:    #000000;
+      --dim:    #63635a;
+      --frame:  #000000;
+      --panel:  #f7f7e6;
+      --hi:     #9eeeee;   /* selection cyan */
+      --sans:   -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --mono:   "DejaVu Sans Mono", "Menlo", "Consolas", monospace;
     }
 
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body { height: 100%; }
     body {
-      background: var(--white);
-      color: var(--black);
-      font-family: var(--sans);
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
-    header {
-      border-bottom: 2px solid var(--black);
-      padding: 16px 24px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-    header h1 {
-      font-family: var(--mono);
-      font-weight: 600;
-      font-size: 15px;
-    }
-    header h1 span { color: var(--blue); }
-    .badge {
-      margin-left: auto;
-      font-family: var(--mono);
-      font-size: 11px;
-      background: var(--black);
-      color: var(--white);
-      padding: 3px 8px;
-    }
-
-    /* ── Status bar ───────────────────────────────── */
-    #status-bar {
-      background: var(--gray1);
-      border-bottom: 1px solid var(--gray2);
-      padding: 8px 24px;
-      font-family: var(--mono);
-      font-size: 11px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--gray3);
-    }
-    .dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--gray3);
-      flex-shrink: 0;
-    }
-    .dot.ready { background: var(--green); }
-    .dot.busy  { background: var(--blue); animation: blink 0.8s infinite; }
-    .dot.error { background: var(--red); }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
-
-    main {
-      display: grid;
-      grid-template-columns: 260px 1fr;
-      min-height: calc(100vh - 77px);
-    }
-
-    aside {
-      border-right: 1px solid var(--gray2);
-      padding: 20px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-      background: var(--gray1);
-    }
-
-    .section-title {
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--gray3);
-      margin-bottom: 8px;
-    }
-
-    #drop-zone {
-      border: 2px dashed var(--gray2);
-      padding: 20px 12px;
-      text-align: center;
-      cursor: pointer;
-      background: var(--white);
-      transition: border-color 0.15s;
-    }
-    #drop-zone:hover, #drop-zone.over { border-color: var(--blue); }
-    #drop-zone p { font-size: 12px; color: var(--gray3); margin-top: 4px; }
-    #drop-zone strong { font-size: 13px; color: var(--black); display: block; }
-    #file-input { display: none; }
-
-    /* Op buttons */
-    .op-list { display: flex; flex-direction: column; gap: 2px; }
-
-    .op-btn {
-      width: 100%;
-      background: var(--white);
-      border: 1px solid var(--gray2);
-      color: var(--black);
+      background: var(--paper);
+      color: var(--ink);
       font-family: var(--sans);
       font-size: 13px;
-      padding: 9px 12px;
-      text-align: left;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      transition: background 0.1s, border-color 0.1s;
-    }
-    .op-btn:hover:not(:disabled) { background: var(--blue); border-color: var(--blue); color: var(--white); }
-    .op-btn:hover:not(:disabled) .op-src { color: rgba(255,255,255,0.6); }
-    .op-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-    .op-src {
-      margin-left: auto;
-      font-family: var(--mono);
-      font-size: 9px;
-      color: var(--gray3);
+      line-height: 1.35;
+      -webkit-font-smoothing: none;
     }
 
-    .param-block { display: flex; flex-direction: column; gap: 12px; }
-
-    .param-row { display: flex; flex-direction: column; gap: 4px; }
-    .param-row label { font-size: 11px; color: var(--gray3); font-family: var(--mono); }
-    .param-row input[type=range] {
-      -webkit-appearance: none;
-      width: 100%; height: 2px;
-      background: var(--gray2);
-      outline: none; cursor: pointer;
-    }
-    .param-row input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 14px; height: 14px;
-      background: var(--blue); border-radius: 0;
-    }
-    .param-val { font-family: var(--mono); font-size: 11px; color: var(--blue); text-align: right; }
-
-    #kernel-editor { display: none; flex-direction: column; gap: 8px; }
-    #kernel-editor.on { display: flex; }
-
-    select {
-      width: 100%;
-      background: var(--white);
-      border: 1px solid var(--gray2);
-      color: var(--black);
+    /* ── Title / tag line ─────────────────────────────────────── */
+    .tagline {
+      background: var(--tag);
+      border-bottom: 1px solid var(--frame);
       font-family: var(--mono);
       font-size: 12px;
-      padding: 6px 8px;
-      outline: none; cursor: pointer;
-    }
-
-    .preset-row { display: flex; gap: 4px; flex-wrap: wrap; }
-    .preset-btn {
-      background: var(--white);
-      border: 1px solid var(--gray2);
-      color: var(--black);
-      font-family: var(--mono);
-      font-size: 10px;
-      padding: 4px 8px;
-      cursor: pointer;
-      transition: background 0.1s;
-    }
-    .preset-btn:hover { background: var(--black); color: var(--white); border-color: var(--black); }
-
-    .kernel-grid { display: grid; gap: 2px; width: fit-content; }
-    .kernel-grid input {
-      width: 36px; height: 36px;
-      background: var(--white);
-      border: 1px solid var(--gray2);
-      color: var(--black);
-      font-family: var(--mono);
-      font-size: 12px;
-      text-align: center; outline: none;
-    }
-    .kernel-grid input:focus { border-color: var(--blue); }
-
-    .right { display: flex; flex-direction: column; padding: 20px 24px; gap: 16px; }
-
-    .canvas-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; }
-
-    .canvas-panel { display: flex; flex-direction: column; gap: 6px; }
-
-    .canvas-label {
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--gray3);
-      display: flex;
-      justify-content: space-between;
-    }
-
-    .canvas-frame {
-      border: 1px solid var(--gray2);
-      background: var(--gray1);
-      min-height: 320px;
+      padding: 3px 8px;
       display: flex;
       align-items: center;
-      justify-content: center;
-      position: relative;
-      overflow: hidden;
+      gap: 4px;
+      user-select: none;
+      white-space: nowrap;
+      overflow-x: auto;
     }
-    .canvas-frame canvas { max-width: 100%; max-height: 400px; display: block; image-rendering: pixelated; }
-    .placeholder { font-size: 12px; color: var(--gray3); text-align: center; line-height: 2; font-family: var(--mono); }
-
-    .overlay {
-      display: none;
-      position: absolute; inset: 0;
-      background: rgba(244,244,244,0.9);
-      align-items: center; justify-content: center;
-      flex-direction: column; gap: 10px;
+    .tagline .win  { font-weight: bold; }
+    .tagline .sep  { color: var(--dim); }
+    .cmd {
+      cursor: pointer;
+      padding: 0 3px;
+      border: 1px solid transparent;
     }
-    .overlay.on { display: flex; }
-    .spinner {
-      width: 28px; height: 28px;
-      border: 2px solid var(--gray2);
-      border-top-color: var(--blue);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .overlay span { font-family: var(--mono); font-size: 11px; color: var(--gray3); }
-
-    .bottom-bar { display: flex; align-items: stretch; gap: 12px; border-top: 1px solid var(--gray2); padding-top: 16px; }
-
-    #download-btn {
-      display: none;
-      background: var(--blue); border: none;
-      color: var(--white); font-family: var(--mono);
-      font-size: 12px; padding: 8px 16px;
-      cursor: pointer; white-space: nowrap;
-    }
-    #download-btn:hover { background: var(--blue2); }
-
-    #log {
-      flex: 1;
-      border: 1px solid var(--gray2);
-      background: var(--gray1);
-      padding: 8px 12px;
+    .cmd:hover { background: var(--ink); color: var(--tag); }
+    .cmd[aria-disabled="true"] { color: var(--dim); cursor: default; }
+    .cmd[aria-disabled="true"]:hover { background: transparent; color: var(--dim); }
+    .grow { margin-left: auto; }
+    .engine {
       font-family: var(--mono);
       font-size: 11px;
-      color: var(--gray3);
-      height: 60px;
-      overflow-y: auto;
-      line-height: 1.8;
+      color: var(--dim);
+      display: flex; align-items: center; gap: 6px;
     }
-    .ok  { color: var(--green); }
-    .err { color: var(--red); }
-    .inf { color: var(--blue); }
+    .led { width: 9px; height: 9px; border: 1px solid var(--frame); background: var(--paper); }
+    .led.ready { background: #000; }
+    .led.busy  { background: #000; animation: blink .5s steps(1) infinite; }
+    .led.error { background: #000; border-color: #000; }
+    .led.error { background: repeating-linear-gradient(45deg,#000 0 2px,#fff 2px 4px); }
+    @keyframes blink { 50% { background: var(--paper); } }
 
-    @media (max-width: 800px) {
-      main { grid-template-columns: 1fr; }
-      aside { border-right: none; border-bottom: 1px solid var(--gray2); }
-      .canvas-row { grid-template-columns: 1fr; }
+    /* ── Workspace ────────────────────────────────────────────── */
+    main {
+      display: grid;
+      grid-template-columns: 232px 1fr;
+      height: calc(100vh - 25px);
+    }
+    aside {
+      border-right: 1px solid var(--frame);
+      overflow-y: auto;
+      background: var(--panel);
+    }
+    .work { display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Panels: every pane has an acme-ish cyan header strip. */
+    .panel { border-bottom: 1px solid var(--frame); }
+    .panel > h2 {
+      background: var(--tag);
+      border-bottom: 1px solid var(--frame);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: normal;
+      padding: 2px 8px;
+      letter-spacing: .04em;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .panel > h2 .hint { color: var(--dim); font-size: 10px; }
+    .panel .body { padding: 8px; }
+
+    /* ── Buttons (acme text-buttons, reverse-video on hover) ──── */
+    .btn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: var(--paper);
+      border: 1px solid var(--frame);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 13px;
+      padding: 4px 8px;
+      cursor: pointer;
+      margin-bottom: -1px; /* collapse borders into a list */
+    }
+    .btn:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+    .btn:hover:not(:disabled) .src { color: var(--tag); }
+    .btn:disabled { color: var(--dim); cursor: default; background: var(--panel); }
+    .btn.sel { background: var(--hi); }
+    .btn.sel:hover { background: var(--ink); color: var(--paper); }
+    .btn .src {
+      float: right;
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--dim);
+    }
+    .btn .desc { display: block; font-size: 10px; color: var(--dim); }
+    .btn:hover:not(:disabled) .desc { color: var(--tag2); }
+
+    /* ── Drop zone ────────────────────────────────────────────── */
+    #drop {
+      border: 1px dashed var(--frame);
+      background: var(--paper);
+      padding: 14px 8px;
+      text-align: center;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    #drop.over { background: var(--hi); }
+    #drop b { font-size: 12px; }
+    #drop small { color: var(--dim); display: block; margin-top: 3px; }
+    #file-input { display: none; }
+
+    /* ── Parameter rows ───────────────────────────────────────── */
+    .params { display: flex; flex-direction: column; gap: 8px; }
+    .prow { display: none; }
+    .prow.on { display: block; }
+    .prow label {
+      font-family: var(--mono); font-size: 10px; color: var(--dim);
+      display: flex; justify-content: space-between;
+    }
+    .prow label b { color: var(--ink); }
+    input[type=range] {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 2px; background: var(--frame);
+      outline: none; cursor: pointer; margin-top: 4px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 12px; height: 12px;
+      background: var(--paper); border: 1px solid var(--frame); border-radius: 0;
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 12px; height: 12px; background: var(--paper);
+      border: 1px solid var(--frame); border-radius: 0;
+    }
+    .muted { font-family: var(--mono); font-size: 10px; color: var(--dim); padding: 4px 0; }
+
+    /* ── Canvas viewers ───────────────────────────────────────── */
+    .viewers {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      flex: 0 0 auto;
+    }
+    .viewer { border-right: 1px solid var(--frame); display: flex; flex-direction: column; }
+    .viewer:last-child { border-right: none; }
+    .viewer h3 {
+      background: var(--tag); border-bottom: 1px solid var(--frame);
+      font-family: var(--mono); font-size: 11px; font-weight: normal;
+      padding: 2px 8px; display: flex; justify-content: space-between;
+    }
+    .viewer h3 .meta { color: var(--dim); }
+    .stage {
+      flex: 1; min-height: 260px; max-height: 42vh;
+      display: flex; align-items: center; justify-content: center;
+      background:
+        repeating-conic-gradient(#efefdc 0% 25%, var(--paper) 0% 50%) 0 0 / 16px 16px;
+      overflow: auto; position: relative;
+    }
+    .stage canvas { image-rendering: pixelated; display: block; }
+    .stage .ph { font-family: var(--mono); font-size: 11px; color: var(--dim); text-align: center; }
+    .stage .busy {
+      position: absolute; inset: 0; display: none;
+      align-items: center; justify-content: center;
+      background: rgba(255,255,234,.82);
+      font-family: var(--mono); font-size: 11px;
+    }
+    .stage .busy.on { display: flex; }
+
+    /* ── Kernel workbench ─────────────────────────────────────── */
+    #workbench { display: none; flex: 1; overflow: hidden; }
+    #workbench.on { display: grid; grid-template-columns: 1fr 210px; }
+    .gallery {
+      border-right: 1px solid var(--frame);
+      overflow-y: auto;
+      padding: 8px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+      gap: 8px;
+      align-content: start;
+    }
+    .kcard {
+      border: 1px solid var(--frame);
+      background: var(--paper);
+      cursor: pointer;
+      display: flex; flex-direction: column;
+    }
+    .kcard.sel { outline: 2px solid var(--ink); }
+    .kcard .kh {
+      background: var(--tag2); border-bottom: 1px solid var(--frame);
+      font-family: var(--mono); font-size: 10px; padding: 2px 5px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .kcard .kh .norm { color: var(--dim); font-size: 9px; }
+    .kmini {
+      display: grid; gap: 1px; padding: 6px; justify-content: center;
+      background: var(--frame);
+      margin: 6px auto 4px;
+    }
+    .kmini span {
+      width: 20px; height: 16px; line-height: 16px; text-align: center;
+      font-family: var(--mono); font-size: 9px; background: var(--paper);
+    }
+    .kcard .kd { font-size: 10px; color: var(--dim); padding: 0 6px 6px; }
+
+    .editor { padding: 8px; overflow-y: auto; }
+    .editor h4 { font-family: var(--mono); font-size: 10px; color: var(--dim); margin: 8px 0 4px; font-weight: normal; }
+    .kgrid { display: grid; gap: 2px; margin-bottom: 8px; }
+    .kgrid input {
+      width: 100%; height: 30px; text-align: center;
+      font-family: var(--mono); font-size: 12px;
+      border: 1px solid var(--frame); background: var(--paper); color: var(--ink);
+      outline: none; padding: 0;
+    }
+    .kgrid input:focus { background: var(--hi); }
+    .kgrid input.neg { color: #a33; }
+    .krow2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+    .krow2 label { font-family: var(--mono); font-size: 10px; color: var(--dim); display: block; }
+    .krow2 input, .editor select {
+      width: 100%; font-family: var(--mono); font-size: 12px;
+      border: 1px solid var(--frame); background: var(--paper); color: var(--ink);
+      padding: 3px 4px; outline: none;
+    }
+
+    /* ── Console ──────────────────────────────────────────────── */
+    #console {
+      flex: 0 0 auto;
+      height: 96px; overflow-y: auto;
+      border-top: 1px solid var(--frame);
+      background: var(--paper);
+      font-family: var(--mono); font-size: 11px;
+      padding: 4px 8px;
+    }
+    #console div { white-space: pre-wrap; }
+    .ok  { color: #060; }
+    .err { color: #a00; }
+    .inf { color: #004a99; }
+
+    @media (max-width: 760px) {
+      main { grid-template-columns: 1fr; height: auto; }
+      aside { border-right: none; border-bottom: 1px solid var(--frame); }
+      .viewers { grid-template-columns: 1fr; }
+      .viewer { border-right: none; border-bottom: 1px solid var(--frame); }
+      #workbench.on { grid-template-columns: 1fr; }
+      .gallery { border-right: none; border-bottom: 1px solid var(--frame); }
     }
   </style>
 </head>
 <body>
 
-<header>
-  <h1>Image Processing <span>Lab</span></h1>
-  <div class="badge">C + WebAssembly</div>
-</header>
-
-<div id="status-bar">
-  <div class="dot" id="dot"></div>
-  <span id="status-text">Loading WebAssembly module…</span>
+<div class="tagline">
+  <span class="win">image(1)</span>
+  <span class="sep">·</span>
+  <span>Image Processing Lab</span>
+  <span class="sep">|</span>
+  <span class="cmd" id="cmd-open">Open</span>
+  <span class="cmd" id="cmd-run"   aria-disabled="true">Run</span>
+  <span class="cmd" id="cmd-apply" aria-disabled="true">Apply</span>
+  <span class="cmd" id="cmd-reset" aria-disabled="true">Reset</span>
+  <span class="cmd" id="cmd-bmp"   aria-disabled="true">Save.bmp</span>
+  <span class="cmd" id="cmd-png"   aria-disabled="true">Save.png</span>
+  <span class="grow"></span>
+  <span class="engine"><span class="led" id="led"></span><span id="engine-txt">loading wasm…</span></span>
 </div>
 
 <main>
+  <!-- ── Sidebar ─────────────────────────────────────────────── -->
   <aside>
-
-    <div>
-      <div class="section-title">Input image</div>
-      <div id="drop-zone">
-        <strong>Drop a BMP file here</strong>
-        <p>or click to select</p>
-        <input type="file" id="file-input" accept=".bmp,image/bmp" />
+    <div class="panel">
+      <h2>input</h2>
+      <div class="body">
+        <div id="drop">
+          <b>Drop an image</b>
+          <small>bmp · png · jpg · gif · webp<br/>or click to browse</small>
+          <input type="file" id="file-input"
+                 accept="image/*,.bmp,.png,.jpg,.jpeg,.gif,.webp" />
+        </div>
       </div>
     </div>
 
-    <div>
-      <div class="section-title">Operation</div>
-      <div class="op-list">
-        <button class="op-btn" data-op="grayscale" disabled>
-          Grayscale <span class="op-src">imageGrayscale.c</span>
+    <div class="panel">
+      <h2>operation</h2>
+      <div class="body">
+        <button class="btn op" data-op="grayscale">
+          Grayscale <span class="src">imageGrayscale.c</span>
+          <span class="desc">BT.601 luminance</span>
         </button>
-        <button class="op-btn" data-op="brightness_up" disabled>
-          Increase Brightness <span class="op-src">imageBrightness.c</span>
+        <button class="btn op" data-op="brightness_up">
+          Brighten <span class="src">imageBrightness.c</span>
+          <span class="desc">+100 per channel, clamped</span>
         </button>
-        <button class="op-btn" data-op="brightness_down" disabled>
-          Reduce Brightness <span class="op-src">imageBrightness.c</span>
+        <button class="btn op" data-op="brightness_down">
+          Darken <span class="src">imageBrightness.c</span>
+          <span class="desc">−50 per channel, clamped</span>
         </button>
-        <button class="op-btn" data-op="binarize" disabled>
-          Adaptive Binarize <span class="op-src">binarization.c</span>
+        <button class="btn op" data-op="binarize">
+          Adaptive threshold <span class="src">binarization.c</span>
+          <span class="desc">local mean − C</span>
         </button>
-        <button class="op-btn" data-op="convolve" disabled>
-          Convolution <span class="op-src">convolution.c</span>
+        <button class="btn op" data-op="equalize">
+          Histogram EQ <span class="src">histogramEqualization.c</span>
+          <span class="desc">per-channel CDF stretch</span>
         </button>
-        <button class="op-btn" data-op="correct_brightness" disabled>
-          Brightness Correction <span class="op-src">imageWriter.c</span>
+        <button class="btn op" data-op="convolve">
+          Convolution <span class="src">convolution.c</span>
+          <span class="desc">spatial kernel workbench</span>
         </button>
       </div>
     </div>
 
-    <div>
-      <div class="section-title">Parameters</div>
-      <div class="param-block">
+    <div class="panel">
+      <h2>parameters</h2>
+      <div class="body">
+        <div class="params">
+          <div class="muted" id="no-params">Select an operation.</div>
 
-        <div class="param-row" id="p-window" style="display:none">
-          <label>Window size</label>
-          <input type="range" id="sl-window" min="3" max="51" step="2" value="15"/>
-          <div class="param-val" id="v-window">15</div>
-        </div>
-
-        <div class="param-row" id="p-c" style="display:none">
-          <label>Constant C</label>
-          <input type="range" id="sl-c" min="0" max="40" value="10"/>
-          <div class="param-val" id="v-c">10</div>
-        </div>
-
-        <div class="param-row" id="p-bright" style="display:none">
-          <label>Brightness offset</label>
-          <input type="range" id="sl-bright" min="-128" max="128" value="30"/>
-          <div class="param-val" id="v-bright">30</div>
-        </div>
-
-        <div id="kernel-editor">
-          <div class="param-row">
-            <label>Kernel size</label>
-            <select id="kernel-size">
-              <option value="3">3×3</option>
-              <option value="5">5×5</option>
-            </select>
+          <div class="prow" id="p-window">
+            <label>window size <b id="v-window">15</b></label>
+            <input type="range" id="sl-window" min="3" max="51" step="2" value="15" />
           </div>
-          <div class="preset-row">
-            <button class="preset-btn" data-preset="blur">Blur</button>
-            <button class="preset-btn" data-preset="sharpen">Sharpen</button>
-            <button class="preset-btn" data-preset="edge">Edge</button>
-            <button class="preset-btn" data-preset="emboss">Emboss</button>
+          <div class="prow" id="p-c">
+            <label>constant C <b id="v-c">10</b></label>
+            <input type="range" id="sl-c" min="0" max="60" value="10" />
           </div>
-          <div class="kernel-grid" id="kernel-grid"></div>
         </div>
-
       </div>
     </div>
-
   </aside>
 
-  <div class="right">
-    <div class="canvas-row">
-      <div class="canvas-panel">
-        <div class="canvas-label">
-          <span>Original</span>
-          <span id="info-orig">—</span>
-        </div>
-        <div class="canvas-frame" id="frame-orig">
-          <div class="placeholder">Load a BMP image<br/>to get started</div>
-          <canvas id="canvas-orig"></canvas>
+  <!-- ── Work area ───────────────────────────────────────────── -->
+  <div class="work">
+    <div class="viewers">
+      <div class="viewer">
+        <h3><span>source</span><span class="meta" id="meta-src">—</span></h3>
+        <div class="stage" id="stage-src">
+          <div class="ph">no image loaded</div>
+          <canvas id="cv-src" style="display:none"></canvas>
         </div>
       </div>
-
-      <div class="canvas-panel">
-        <div class="canvas-label">
-          <span>Result · C/WASM</span>
-          <span id="info-result">—</span>
-        </div>
-        <div class="canvas-frame">
-          <div class="placeholder" id="result-placeholder">Select an operation</div>
-          <canvas id="canvas-result"></canvas>
-          <div class="overlay" id="overlay">
-            <div class="spinner"></div>
-            <span>Running C function…</span>
-          </div>
+      <div class="viewer">
+        <h3><span>result · C/wasm</span><span class="meta" id="meta-res">—</span></h3>
+        <div class="stage" id="stage-res">
+          <div class="ph">Run an operation</div>
+          <canvas id="cv-res" style="display:none"></canvas>
+          <div class="busy" id="busy">running C…</div>
         </div>
       </div>
     </div>
 
-    <div class="bottom-bar">
-      <button id="apply-btn">Apply</button>
-      <button id="reset-btn">Reset</button>
-      <button id="save-btn" disabled>Save (.bmp)</button>
-    <div id="log">
+    <!-- Kernel workbench (convolution only) -->
+    <div id="workbench">
+      <div class="gallery" id="gallery"></div>
+      <div class="editor">
+        <h4>size</h4>
+        <select id="ksize">
+          <option value="3">3 × 3</option>
+          <option value="5">5 × 5</option>
+        </select>
+        <h4>weights</h4>
+        <div class="kgrid" id="kgrid"></div>
+        <div class="krow2">
+          <div>
+            <label>divisor</label>
+            <input type="number" id="kdiv" value="1" />
+          </div>
+          <div>
+            <label>bias</label>
+            <input type="number" id="kbias" value="0" />
+          </div>
+        </div>
+        <div class="muted" id="ksum">Σ = 1</div>
+      </div>
+    </div>
+
+    <div id="console"></div>
   </div>
 </main>
 
 <script>
+/* ══════════════════════════════════════════════════════════════
+   State
+   ══════════════════════════════════════════════════════════════ */
 let Mod = null;
-let originalBmp = null;
-let workingBmp  = null;
-let lastResult  = null;
-let activeOp = null;
+let srcImage  = null;   // ImageData, original (width padded to x4)
+let workImage = null;   // ImageData, current working buffer
+let resImage  = null;   // ImageData, last result shown
+let activeOp  = null;
+let srcName   = 'image';
 
-/* ── Status & log ─────────────────────────────────────── */
-const dot  = document.getElementById('dot');
-const stxt = document.getElementById('status-text');
-const logEl = document.getElementById('log');
+/* ══════════════════════════════════════════════════════════════
+   Console + status
+   ══════════════════════════════════════════════════════════════ */
+const led = document.getElementById('led');
+const engineTxt = document.getElementById('engine-txt');
+const cons = document.getElementById('console');
 
-function setStatus(state, msg) {
-  dot.className = 'dot ' + state;
-  stxt.textContent = msg;
+function status(state, msg) { led.className = 'led ' + state; engineTxt.textContent = msg; }
+function log(msg, cls) {
+  const d = document.createElement('div');
+  if (cls) d.className = cls;
+  d.textContent = msg;
+  cons.appendChild(d);
+  cons.scrollTop = cons.scrollHeight;
 }
-function log(msg, cls = '') {
-  const s = document.createElement('span');
-  if (cls) s.className = cls;
-  s.textContent = msg;
-  logEl.appendChild(document.createElement('br'));
-  logEl.appendChild(s);
-  logEl.scrollTop = logEl.scrollHeight;
-}
 
+/* ══════════════════════════════════════════════════════════════
+   WASM loader
+   ══════════════════════════════════════════════════════════════ */
 async function loadWasm() {
-  setStatus('busy', 'Loading WebAssembly module…');
+  status('busy', 'loading wasm…');
   try {
     await new Promise((res, rej) => {
       const s = document.createElement('script');
       s.src = 'imgproc.js';
       s.onload = res;
-      s.onerror = () => rej(new Error('imgproc.js not found — see log'));
+      s.onerror = () => rej(new Error('imgproc.js not found (built by CI)'));
       document.head.appendChild(s);
     });
     Mod = await ImageProcModule();
-    setStatus('ready', 'WASM ready — C engine loaded');
-    log('// Module loaded OK', 'ok');
-    enableButtons();
+    status('ready', 'C engine ready');
+    log('// wasm module loaded', 'ok');
+    refreshEnabled();
   } catch (e) {
-    setStatus('error', e.message);
+    status('error', e.message);
     log('// ERROR: ' + e.message, 'err');
-    log('// imgproc.js is built by the GitHub Actions workflow.', 'inf');
+    log('// run the GitHub Action to build imgproc.js/.wasm', 'inf');
   }
 }
 
-const dropZone = document.getElementById('drop-zone');
-const fileInp  = document.getElementById('file-input');
+/* ══════════════════════════════════════════════════════════════
+   Image loading — ANY browser-decodable format → padded ImageData
+   ══════════════════════════════════════════════════════════════ */
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file-input');
 
-dropZone.addEventListener('click', () => fileInp.click());
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault(); dropZone.classList.remove('over');
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('over');
   if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
 });
-fileInp.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+document.getElementById('cmd-open').addEventListener('click', () => fileInput.click());
 
-function loadFile(file) {
-  if (!file.name.toLowerCase().endsWith('.bmp')) {
-    log('// Only .bmp files are supported', 'err'); return;
+async function loadFile(file) {
+  status('busy', 'decoding ' + file.name);
+  try {
+    const bmp = await createImageBitmap(file);
+    srcName = file.name.replace(/\.[^.]+$/, '') || 'image';
+
+    /* Pad width up to a multiple of 4 pixels.  Every C path in this
+       project assumes tightly-packed rows; forcing width%4==0 makes
+       the padded and unpadded row strides identical for both 8bpp
+       and 24bpp, so no path ever mis-reads the buffer. */
+    const w0 = bmp.width, h0 = bmp.height;
+    const W = (w0 + 3) & ~3;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = h0;
+    const cx = c.getContext('2d');
+    cx.drawImage(bmp, 0, 0);
+    const img = cx.getImageData(0, 0, W, h0);
+
+    // Replicate the last real column into the padding, opaque.
+    for (let y = 0; y < h0; y++) {
+      for (let x = w0; x < W; x++) {
+        const s = (y * W + (w0 - 1)) * 4, d = (y * W + x) * 4;
+        img.data[d] = img.data[s]; img.data[d+1] = img.data[s+1];
+        img.data[d+2] = img.data[s+2]; img.data[d+3] = 255;
+      }
+    }
+    for (let i = 3; i < img.data.length; i += 4) img.data[i] = 255;
+
+    srcImage  = img;
+    workImage = cloneImage(img);
+    resImage  = null;
+
+    drawTo('cv-src', 'stage-src', workImage);
+    document.getElementById('meta-src').textContent = `${w0}×${h0}${W!==w0?` (→${W})`:''}`;
+    clearResult();
+    log(`// loaded ${file.name}  ${w0}×${h0}px  ${file.type||'?'}`, 'ok');
+    status('ready', 'C engine ready');
+    refreshEnabled();
+  } catch (e) {
+    status('error', 'decode failed');
+    log('// could not decode ' + file.name + ': ' + e.message, 'err');
   }
-  const reader = new FileReader();
-  reader.onload = e => {
-    originalBmp = new Uint8Array(e.target.result);
-    workingBmp  = new Uint8Array(originalBmp);
-
-    const {w, h, bpp} = parseHeader(workingBmp);
-    drawBmp(workingBmp, document.getElementById('canvas-orig'));
-    document.querySelector('#frame-orig .placeholder').style.display = 'none';
-    document.getElementById('info-orig').textContent = `${w}×${h} · ${bpp}bpp`;
-    log(`// Loaded: ${file.name} (${w}×${h}, ${bpp}bpp)`, 'ok');
-    enableButtons();
-  };
-  reader.readAsArrayBuffer(file);
 }
 
-function parseHeader(b) {
-  const v = new DataView(b.buffer, b.byteOffset);
-  return {
-    dataOff: v.getUint32(10, true),
-    w:   v.getInt32(18, true),
-    h:   Math.abs(v.getInt32(22, true)),
-    bpp: v.getUint16(28, true)
-  };
+function cloneImage(img) {
+  return new ImageData(new Uint8ClampedArray(img.data), img.width, img.height);
 }
 
-function drawBmp(bytes, canvas) {
-  const {dataOff, w, h, bpp} = parseHeader(bytes);
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  const img = ctx.createImageData(w, h);
-  const px  = img.data;
+function drawTo(canvasId, stageId, img) {
+  const cv = document.getElementById(canvasId);
+  cv.width = img.width; cv.height = img.height;
+  cv.getContext('2d').putImageData(img, 0, 0);
+  cv.style.display = 'block';
+  const ph = document.getElementById(stageId).querySelector('.ph');
+  if (ph) ph.style.display = 'none';
+}
+
+function clearResult() {
+  resImage = null;
+  const cv = document.getElementById('cv-res');
+  cv.style.display = 'none';
+  const ph = document.getElementById('stage-res').querySelector('.ph');
+  if (ph) ph.style.display = '';
+  document.getElementById('meta-res').textContent = '—';
+  refreshEnabled();
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BMP encode / decode  (width guaranteed %4==0)
+   ══════════════════════════════════════════════════════════════ */
+function encodeBmp24(img) {
+  const W = img.width, H = img.height, row = W * 3;
+  const size = 54 + row * H;
+  const b = new Uint8Array(size);
+  const dv = new DataView(b.buffer);
+  b[0] = 0x42; b[1] = 0x4D;                 // "BM"
+  dv.setUint32(2, size, true);
+  dv.setUint32(10, 54, true);               // pixel offset
+  dv.setUint32(14, 40, true);               // DIB size
+  dv.setInt32(18, W, true);
+  dv.setInt32(22, H, true);                 // bottom-up
+  dv.setUint16(26, 1, true);
+  dv.setUint16(28, 24, true);
+  dv.setUint32(34, row * H, true);
+  const src = img.data;
+  for (let y = 0; y < H; y++) {
+    const sy = H - 1 - y;                    // flip to bottom-up
+    let d = 54 + y * row;
+    let s = sy * W * 4;
+    for (let x = 0; x < W; x++, s += 4) {
+      b[d++] = src[s + 2];                   // B
+      b[d++] = src[s + 1];                   // G
+      b[d++] = src[s];                       // R
+    }
+  }
+  return b;
+}
+
+function encodeBmp8Gray(img) {
+  const W = img.width, H = img.height, row = W;
+  const off = 54 + 1024;
+  const size = off + row * H;
+  const b = new Uint8Array(size);
+  const dv = new DataView(b.buffer);
+  b[0] = 0x42; b[1] = 0x4D;
+  dv.setUint32(2, size, true);
+  dv.setUint32(10, off, true);
+  dv.setUint32(14, 40, true);
+  dv.setInt32(18, W, true);
+  dv.setInt32(22, H, true);
+  dv.setUint16(26, 1, true);
+  dv.setUint16(28, 8, true);
+  dv.setUint32(34, row * H, true);
+  dv.setUint32(46, 256, true);              // colors used
+  for (let i = 0; i < 256; i++) {           // grayscale palette
+    const o = 54 + i * 4;
+    b[o] = b[o + 1] = b[o + 2] = i; b[o + 3] = 0;
+  }
+  const src = img.data;
+  for (let y = 0; y < H; y++) {
+    const sy = H - 1 - y;
+    let d = off + y * row;
+    let s = sy * W * 4;
+    for (let x = 0; x < W; x++, s += 4) {
+      b[d++] = (0.299*src[s] + 0.587*src[s+1] + 0.114*src[s+2]) | 0;
+    }
+  }
+  return b;
+}
+
+function decodeBmp(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset);
+  const off = dv.getUint32(10, true);
+  const W = dv.getInt32(18, true);
+  const H = Math.abs(dv.getInt32(22, true));
+  const bpp = dv.getUint16(28, true);
+  const img = new ImageData(W, H);
+  const d = img.data;
 
   if (bpp === 24) {
-    const row = Math.floor((w*3+3)/4)*4;
-    for (let y=0;y<h;y++) {
-      const sy = h-1-y;
-      for (let x=0;x<w;x++) {
-        const s=dataOff+sy*row+x*3, d=(y*w+x)*4;
-        px[d]=bytes[s+2]; px[d+1]=bytes[s+1]; px[d+2]=bytes[s+0]; px[d+3]=255;
+    const row = (W * 3 + 3) & ~3;
+    for (let y = 0; y < H; y++) {
+      const sy = H - 1 - y;
+      let s = off + sy * row, o = y * W * 4;
+      for (let x = 0; x < W; x++, s += 3, o += 4) {
+        d[o]   = bytes[s + 2]; d[o+1] = bytes[s + 1];
+        d[o+2] = bytes[s];     d[o+3] = 255;
       }
     }
   } else if (bpp === 8) {
-    const pal=[];
-    for(let i=0;i<256;i++){const o=54+i*4;pal.push([bytes[o+2],bytes[o+1],bytes[o+0]]);}
-    const row=Math.floor((w+3)/4)*4;
-    for(let y=0;y<h;y++){
-      const sy=h-1-y;
-      for(let x=0;x<w;x++){
-        const pi=bytes[dataOff+sy*row+x], d=(y*w+x)*4;
-        px[d]=pal[pi][0];px[d+1]=pal[pi][1];px[d+2]=pal[pi][2];px[d+3]=255;
+    const pal = [];
+    for (let i = 0; i < 256; i++) { const p = 54 + i*4; pal.push([bytes[p+2],bytes[p+1],bytes[p]]); }
+    const row = (W + 3) & ~3;
+    for (let y = 0; y < H; y++) {
+      const sy = H - 1 - y;
+      let s = off + sy * row, o = y * W * 4;
+      for (let x = 0; x < W; x++, s++, o += 4) {
+        const c = pal[bytes[s]];
+        d[o] = c[0]; d[o+1] = c[1]; d[o+2] = c[2]; d[o+3] = 255;
       }
     }
-  } else {
-    ctx.fillStyle='#e0e0e0';ctx.fillRect(0,0,w,h);
-    ctx.fillStyle='#999';ctx.font='13px IBM Plex Mono';
-    ctx.fillText(`${bpp}bpp preview not supported`,8,h/2);
-    return;
   }
-  ctx.putImageData(img,0,0);
+  return img;
 }
 
-function enableButtons() {
-  const ok = !!(Mod && workingBmp);
-  document.querySelectorAll('.op-btn').forEach(b => b.disabled = !ok);
+/* ══════════════════════════════════════════════════════════════
+   WASM glue
+   ══════════════════════════════════════════════════════════════ */
+function toWasm(bytes) { const p = Mod._alloc_input(bytes.length); Mod.HEAPU8.set(bytes, p); return p; }
+function readOut() {
+  const p = Mod._get_output_ptr(), l = Mod._get_output_len();
+  if (!p || l === 0) return null;
+  const r = new Uint8Array(Mod.HEAPU8.buffer, p, l).slice();
+  Mod._free_output();
+  return r;
 }
 
-document.querySelectorAll('.op-btn').forEach(btn => {
+/* Run a WASM operation on `img`, return a fresh ImageData (or null). */
+function execOp(op, img) {
+  if (op === 'grayscale' || op === 'brightness_up' ||
+      op === 'brightness_down' || op === 'equalize') {
+    const fn = { grayscale: '_wasm_grayscale',
+                 brightness_up: '_wasm_increase_brightness',
+                 brightness_down: '_wasm_reduce_brightness',
+                 equalize: '_wasm_correct_brightness' }[op];
+    const bmp = encodeBmp24(img);
+    const p = toWasm(bmp);
+    Mod[fn](p, bmp.length);
+    Mod._free_input(p);
+    const out = readOut();
+    return out ? decodeBmp(out) : null;
+  }
+
+  if (op === 'binarize') {
+    const bmp = encodeBmp8Gray(img);
+    const p = toWasm(bmp);
+    Mod._wasm_binarize(p, bmp.length,
+      +document.getElementById('sl-window').value,
+      +document.getElementById('sl-c').value);
+    Mod._free_input(p);
+    const out = readOut();
+    return out ? decodeBmp(out) : null;
+  }
+
+  if (op === 'convolve') {
+    const bmp = encodeBmp24(img);
+    const hdr = bmp.subarray(0, 54), pix = bmp.subarray(54);
+    const k = readKernel();
+    const hp = toWasm(hdr), pp = toWasm(pix);
+    // kernel as int32
+    const kbuf = new Int32Array(k.data);
+    const kp = Mod._alloc_input(kbuf.length * 4);
+    Mod.HEAP32.set(kbuf, kp >> 2);
+    Mod._wasm_convolve(hp, hdr.length, pp, pix.length,
+      img.height, img.width, kp, k.size, k.size, k.divisor, k.bias);
+    Mod._free_input(hp); Mod._free_input(pp); Mod._free_input(kp);
+    const out = readOut();
+    return out ? decodeBmp(out) : null;
+  }
+  return null;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Run / Apply / Reset / Save
+   ══════════════════════════════════════════════════════════════ */
+async function run() {
+  if (!activeOp || !workImage || !Mod) return;
+  const busy = document.getElementById('busy');
+  busy.classList.add('on');
+  status('busy', `running ${activeOp}…`);
+  await new Promise(r => setTimeout(r, 15));
+  try {
+    const t0 = performance.now();
+    const out = execOp(activeOp, workImage);
+    const ms = (performance.now() - t0).toFixed(1);
+    if (out) {
+      resImage = out;
+      drawTo('cv-res', 'stage-res', out);
+      document.getElementById('meta-res').textContent = `${out.width}×${out.height} · ${ms}ms`;
+      log(`// ${activeOp} → ${ms}ms`, 'ok');
+      status('ready', `${activeOp} done in ${ms}ms`);
+    } else {
+      log('// empty result', 'err');
+      status('error', 'empty result');
+    }
+  } catch (e) {
+    log('// error: ' + e.message, 'err');
+    status('error', e.message);
+  } finally {
+    busy.classList.remove('on');
+    refreshEnabled();
+  }
+}
+
+function apply() {
+  if (!resImage) return;
+  workImage = cloneImage(resImage);
+  drawTo('cv-src', 'stage-src', workImage);
+  document.getElementById('meta-src').textContent =
+    `${workImage.width}×${workImage.height} · edited`;
+  log('// result folded into working image', 'inf');
+}
+
+function reset() {
+  if (!srcImage) return;
+  workImage = cloneImage(srcImage);
+  drawTo('cv-src', 'stage-src', workImage);
+  document.getElementById('meta-src').textContent = `${workImage.width}×${workImage.height}`;
+  clearResult();
+  log('// reset to original', 'inf');
+}
+
+function saveAs(kind) {
+  const img = resImage || workImage;
+  if (!img) return;
+  if (kind === 'bmp') {
+    const blob = new Blob([encodeBmp24(img)], { type: 'image/bmp' });
+    download(blob, srcName + '_out.bmp');
+  } else {
+    const cv = document.createElement('canvas');
+    cv.width = img.width; cv.height = img.height;
+    cv.getContext('2d').putImageData(img, 0, 0);
+    cv.toBlob(b => download(b, srcName + '_out.png'), 'image/png');
+  }
+}
+function download(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
+  log('// saved ' + name, 'ok');
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Operation selection + parameter panels
+   ══════════════════════════════════════════════════════════════ */
+document.querySelectorAll('.op').forEach(btn => {
   btn.addEventListener('click', () => {
     activeOp = btn.dataset.op;
+    document.querySelectorAll('.op').forEach(b => b.classList.toggle('sel', b === btn));
     updateParams();
+    refreshEnabled();
   });
 });
 
 function updateParams() {
-  document.getElementById('p-window').style.display = activeOp==='binarize' ? '' : 'none';
-  document.getElementById('p-c').style.display      = activeOp==='binarize' ? '' : 'none';
-  document.getElementById('p-bright').style.display = activeOp==='correct_brightness' ? '' : 'none';
-  document.getElementById('kernel-editor').classList.toggle('on', activeOp==='convolve');
+  const isBin = activeOp === 'binarize';
+  const isConv = activeOp === 'convolve';
+  document.getElementById('p-window').classList.toggle('on', isBin);
+  document.getElementById('p-c').classList.toggle('on', isBin);
+  document.getElementById('no-params').style.display =
+    (isBin || isConv || !activeOp) ? 'none' : '';
+  if (!isBin && !isConv && activeOp) {
+    document.getElementById('no-params').style.display = '';
+    document.getElementById('no-params').textContent = 'No parameters for this operation.';
+  }
+  document.getElementById('workbench').classList.toggle('on', isConv);
 }
 
-[['sl-window','v-window'],['sl-c','v-c'],['sl-bright','v-bright']].forEach(([s,v])=>{
-  document.getElementById(s).addEventListener('input',()=>{
-    document.getElementById(v).textContent = document.getElementById(s).value;
+[['sl-window','v-window'],['sl-c','v-c']].forEach(([s,v]) => {
+  document.getElementById(s).addEventListener('input', () =>
+    document.getElementById(v).textContent = document.getElementById(s).value);
+});
+
+function refreshEnabled() {
+  const hasImg = !!(Mod && workImage);
+  document.querySelectorAll('.op').forEach(b => b.disabled = !hasImg);
+  const set = (id, on) => document.getElementById(id).setAttribute('aria-disabled', on ? 'false' : 'true');
+  set('cmd-run', hasImg && !!activeOp);
+  set('cmd-apply', !!resImage);
+  set('cmd-reset', !!srcImage);
+  set('cmd-bmp', !!(resImage || workImage));
+  set('cmd-png', !!(resImage || workImage));
+}
+
+document.getElementById('cmd-run').addEventListener('click', e => { if (e.target.getAttribute('aria-disabled')==='false') run(); });
+document.getElementById('cmd-apply').addEventListener('click', e => { if (e.target.getAttribute('aria-disabled')==='false') apply(); });
+document.getElementById('cmd-reset').addEventListener('click', e => { if (e.target.getAttribute('aria-disabled')==='false') reset(); });
+document.getElementById('cmd-bmp').addEventListener('click', e => { if (e.target.getAttribute('aria-disabled')==='false') saveAs('bmp'); });
+document.getElementById('cmd-png').addEventListener('click', e => { if (e.target.getAttribute('aria-disabled')==='false') saveAs('png'); });
+
+/* ══════════════════════════════════════════════════════════════
+   Kernel gallery + editor
+   ══════════════════════════════════════════════════════════════ */
+const KERNELS = [
+  { name: 'Identity', size: 3, div: 1, bias: 0, d: [0,0,0, 0,1,0, 0,0,0],
+    desc: 'Pass-through. A baseline to compare against.' },
+  { name: 'Box blur', size: 3, div: 9, bias: 0, d: [1,1,1, 1,1,1, 1,1,1],
+    desc: 'Uniform average of the 3×3 neighbourhood.' },
+  { name: 'Gaussian', size: 3, div: 16, bias: 0, d: [1,2,1, 2,4,2, 1,2,1],
+    desc: 'Weighted blur, softer edges than box blur.' },
+  { name: 'Sharpen', size: 3, div: 1, bias: 0, d: [0,-1,0, -1,5,-1, 0,-1,0],
+    desc: 'Boosts the centre against its neighbours.' },
+  { name: 'Laplacian', size: 3, div: 1, bias: 0, d: [-1,-1,-1, -1,8,-1, -1,-1,-1],
+    desc: 'Second derivative — highlights all edges.' },
+  { name: 'Sobel X', size: 3, div: 1, bias: 128, d: [-1,0,1, -2,0,2, -1,0,1],
+    desc: 'Horizontal gradient, centred on mid-gray.' },
+  { name: 'Sobel Y', size: 3, div: 1, bias: 128, d: [-1,-2,-1, 0,0,0, 1,2,1],
+    desc: 'Vertical gradient, centred on mid-gray.' },
+  { name: 'Emboss', size: 3, div: 1, bias: 128, d: [-2,-1,0, -1,1,1, 0,1,2],
+    desc: 'Directional relief, lit from top-left.' },
+  { name: 'Outline', size: 3, div: 1, bias: 0, d: [-1,-1,-1, -1,9,-1, -1,-1,-1],
+    desc: 'High-pass; keeps edges, darkens flats.' },
+  { name: 'Gaussian 5', size: 5, div: 256, bias: 0,
+    d: [1,4,6,4,1, 4,16,24,16,4, 6,24,36,24,6, 4,16,24,16,4, 1,4,6,4,1],
+    desc: 'Wider Gaussian blur, 5×5 support.' },
+  { name: 'Unsharp 5', size: 5, div: 256, bias: 0,
+    d: [-1,-4,-6,-4,-1, -4,-16,-24,-16,-4, -6,-24,476,-24,-6,
+        -4,-16,-24,-16,-4, -1,-4,-6,-4,-1],
+    desc: 'Unsharp mask: original minus a Gaussian.' },
+  { name: 'Motion blur', size: 5, div: 5, bias: 0,
+    d: [1,0,0,0,0, 0,1,0,0,0, 0,0,1,0,0, 0,0,0,1,0, 0,0,0,0,1],
+    desc: 'Averages along the diagonal — a smear.' },
+];
+
+let selectedKernel = 1; // box blur
+
+function renderGallery() {
+  const g = document.getElementById('gallery');
+  g.innerHTML = '';
+  KERNELS.forEach((k, i) => {
+    const card = document.createElement('div');
+    card.className = 'kcard' + (i === selectedKernel ? ' sel' : '');
+    const norm = k.div === 1 && k.bias === 0 ? '' :
+      `${k.div!==1?'÷'+k.div:''}${k.bias?' +'+k.bias:''}`;
+    const mini = document.createElement('div');
+    mini.className = 'kmini';
+    mini.style.gridTemplateColumns = `repeat(${k.size},20px)`;
+    // shade cells by sign/magnitude, sober grayscale
+    const max = Math.max(1, ...k.d.map(Math.abs));
+    k.d.forEach(v => {
+      const s = document.createElement('span');
+      s.textContent = v;
+      const t = Math.abs(v) / max;
+      if (v > 0)      s.style.background = `rgba(0,80,120,${0.08 + t*0.28})`;
+      else if (v < 0) s.style.background = `rgba(150,60,0,${0.08 + t*0.28})`;
+      mini.appendChild(s);
+    });
+    card.innerHTML = `<div class="kh"><span>${k.name}</span><span class="norm">${norm}</span></div>`;
+    card.appendChild(mini);
+    const dd = document.createElement('div');
+    dd.className = 'kd'; dd.textContent = k.desc;
+    card.appendChild(dd);
+    card.addEventListener('click', () => { selectedKernel = i; loadKernel(k); renderGallery(); });
+    g.appendChild(card);
   });
-});
-
-const PRESETS = {
-  blur:    {s:3,d:[1,1,1,1,1,1,1,1,1]},
-  sharpen: {s:3,d:[0,-1,0,-1,5,-1,0,-1,0]},
-  edge:    {s:3,d:[-1,-1,-1,-1,8,-1,-1,-1,-1]},
-  emboss:  {s:3,d:[-2,-1,0,-1,1,1,0,1,2]},
-};
-
-function buildKernel(size,vals) {
-  const g=document.getElementById('kernel-grid');
-  g.style.gridTemplateColumns=`repeat(${size},36px)`;
-  g.innerHTML='';
-  for(let i=0;i<size*size;i++){
-    const inp=document.createElement('input');
-    inp.type='number';
-    inp.value=vals?vals[i]:(i===Math.floor(size*size/2)?1:0);
-    g.appendChild(inp);
-  }
-}
-buildKernel(3);
-
-document.getElementById('kernel-size').addEventListener('change',e=>buildKernel(+e.target.value));
-document.querySelectorAll('.preset-btn').forEach(b=>{
-  b.addEventListener('click',()=>{const p=PRESETS[b.dataset.preset];document.getElementById('kernel-size').value=p.s;buildKernel(p.s,p.d);});
-});
-
-function getKernel() {
-  const size=+document.getElementById('kernel-size').value;
-  const data=Array.from(document.querySelectorAll('#kernel-grid input')).map(i=>+i.value||0);
-  return {size,data};
 }
 
-function toWasm(bytes){const p=Mod._alloc_input(bytes.length);Mod.HEAPU8.set(bytes,p);return p;}
-function readOut(){
-  const p=Mod._get_output_ptr(),l=Mod._get_output_len();
-  if(!p||l===0)return null;
-  const r=new Uint8Array(Mod.HEAPU8.buffer,p,l).slice();
-  Mod._free_output();return r;
+function loadKernel(k) {
+  document.getElementById('ksize').value = k.size;
+  buildGrid(k.size, k.d);
+  document.getElementById('kdiv').value = k.div;
+  document.getElementById('kbias').value = k.bias;
+  updateKsum();
 }
 
-async function runOp() {
-  document.getElementById('overlay').classList.add('on');
-  setStatus('busy',`Running ${activeOp}…`);
-  await new Promise(r=>setTimeout(r,20));
-
-  try {
-    const t0=performance.now();
-    const result=execOp(activeOp);
-    const ms=(performance.now()-t0).toFixed(1);
-
-    if(result&&result.length>0){
-      lastResult=result;
-      drawBmp(result,document.getElementById('canvas-result'));
-      document.getElementById('result-placeholder').style.display='none';
-      document.getElementById('info-result').textContent=`${result.length} bytes · ${ms}ms`;
-      document.getElementById('download-btn').style.display='';
-      log(`// ${activeOp} done in ${ms}ms`,'ok');
-      setStatus('ready',`${activeOp} completed in ${ms}ms`);
-    } else {
-      log('// Empty result — check BMP bit depth','err');
-      setStatus('error','Empty result');
-    }
-  } catch(e) {
-    log('// Error: '+e.message,'err');
-    setStatus('error',e.message);
-  } finally {
-    document.getElementById('overlay').classList.remove('on');
+function buildGrid(size, vals) {
+  const grid = document.getElementById('kgrid');
+  grid.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+  grid.innerHTML = '';
+  for (let i = 0; i < size * size; i++) {
+    const inp = document.createElement('input');
+    inp.type = 'number';
+    inp.value = vals ? vals[i] : (i === (size*size >> 1) ? 1 : 0);
+    inp.addEventListener('input', () => { markNeg(inp); updateKsum(); });
+    markNeg(inp);
+    grid.appendChild(inp);
   }
 }
+function markNeg(inp) { inp.classList.toggle('neg', (+inp.value) < 0); }
 
-function execOp(op) {
-  const b=workingBmp;
-  if(op==='grayscale'){const p=toWasm(b);Mod._wasm_grayscale(p,b.length);Mod._free_input(p);return readOut();}
-  if(op==='brightness_up'){const p=toWasm(b);Mod._wasm_increase_brightness(p,b.length);Mod._free_input(p);return readOut();}
-  if(op==='brightness_down'){const p=toWasm(b);Mod._wasm_reduce_brightness(p,b.length);Mod._free_input(p);return readOut();}
-  if(op==='binarize'){
-    const p=toWasm(b);
-    Mod._wasm_binarize(p,b.length,+document.getElementById('sl-window').value,+document.getElementById('sl-c').value);
-    Mod._free_input(p);return readOut();
-  }
-  if(op==='convolve'){
-    const v=new DataView(b.buffer,b.byteOffset);
-    const off=v.getUint32(10,true),w=v.getInt32(18,true),h=Math.abs(v.getInt32(22,true));
-    const hdr=b.slice(0,off),pix=b.slice(off);
-    const {size,data}=getKernel();
-    const kb=new Uint8Array(data.map(x=>x<0?256+x:x));
-    const hp=toWasm(hdr),pp=toWasm(pix),kp=toWasm(kb);
-    Mod._wasm_convolve(hp,hdr.length,pp,pix.length,h,w,kp,size,size);
-    Mod._free_input(hp);Mod._free_input(pp);Mod._free_input(kp);
-    return readOut();
-  }
-  if(op==='correct_brightness'){
-    const v=new DataView(b.buffer,b.byteOffset);
-    const off=v.getUint32(10,true),w=v.getInt32(18,true),h=Math.abs(v.getInt32(22,true));
-    const hdr=b.slice(0,off),pix=b.slice(off);
-    const hp=toWasm(hdr),pp=toWasm(pix);
-    Mod._wasm_correct_brightness(hp,hdr.length,pp,pix.length,h,w,+document.getElementById('sl-bright').value);
-    Mod._free_input(hp);Mod._free_input(pp);
-    return readOut();
-  }
+function readKernel() {
+  const size = +document.getElementById('ksize').value;
+  const data = Array.from(document.querySelectorAll('#kgrid input')).map(i => Math.round(+i.value || 0));
+  let divisor = Math.round(+document.getElementById('kdiv').value || 1);
+  if (divisor === 0) divisor = 1;
+  const bias = Math.round(+document.getElementById('kbias').value || 0);
+  return { size, data, divisor, bias };
 }
 
-document.getElementById('save-btn').addEventListener('click', () => {
-  if (!workingBmp) return;
+function updateKsum() {
+  const k = readKernel();
+  const sum = k.data.reduce((a, b) => a + b, 0);
+  const eff = (sum / k.divisor).toFixed(2).replace(/\.00$/, '');
+  document.getElementById('ksum').textContent =
+    `Σ = ${sum}   ÷${k.divisor}${k.bias?`  +${k.bias}`:''}   ⇒ gain ${eff}`;
+}
 
-  const url = URL.createObjectURL(
-    new Blob([workingBmp], { type: 'image/bmp' })
-  );
+document.getElementById('ksize').addEventListener('change', e => { buildGrid(+e.target.value); updateKsum(); });
+['kdiv','kbias'].forEach(id => document.getElementById(id).addEventListener('input', updateKsum));
 
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'processed.bmp';
-  a.click();
-
-  URL.revokeObjectURL(url);
-});
-
-document.getElementById('apply-btn').addEventListener('click', async () => {
-  if (!activeOp || !workingBmp || !Mod) return;
-
-  document.getElementById('overlay').classList.add('on');
-  setStatus('busy', `Applying ${activeOp}…`);
-
-  await new Promise(r => setTimeout(r, 10));
-
-  try {
-    const t0 = performance.now();
-    const result = execOp(activeOp);
-    const ms = (performance.now() - t0).toFixed(1);
-
-    if (result && result.length > 0) {
-      workingBmp = result;
-      lastResult = result;
-
-      drawBmp(result, document.getElementById('canvas-result'));
-      document.getElementById('save-btn').disabled = false;
-
-      log(`// ${activeOp} applied in ${ms}ms`, 'ok');
-      setStatus('ready', `${activeOp} applied`);
-    }
-  } catch (e) {
-    log('// Error: ' + e.message, 'err');
-    setStatus('error', e.message);
-  } finally {
-    document.getElementById('overlay').classList.remove('on');
-  }
-});
-
-document.getElementById('reset-btn').addEventListener('click', () => {
-  if (!originalBmp) return;
-
-  workingBmp = new Uint8Array(originalBmp);
-  lastResult = null;
-
-  drawBmp(workingBmp, document.getElementById('canvas-result'));
-  document.getElementById('save-btn').disabled = true;
-
-  log('// Image reset to original', 'inf');
-  setStatus('ready', 'Image reset');
-});
-
+/* ══════════════════════════════════════════════════════════════
+   Boot
+   ══════════════════════════════════════════════════════════════ */
+renderGallery();
+loadKernel(KERNELS[selectedKernel]);
+updateParams();
 loadWasm();
 </script>
 </body>

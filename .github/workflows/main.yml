@@ -40,9 +40,13 @@ jobs:
               "_wasm_reduce_brightness",
               "_wasm_binarize",
               "_wasm_convolve",
-              "_wasm_correct_brightness"
+              "_wasm_correct_brightness",
+              "_malloc",
+              "_free"
             ]' \
             -s EXPORTED_RUNTIME_METHODS='[
               "ccall",
-              "cwrap"
+              "cwrap",
+              "HEAPU8",
+              "HEAP32"
             ]'
